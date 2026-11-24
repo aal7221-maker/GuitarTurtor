@@ -1,0 +1,10 @@
+work/
+*.wav
+*.mp3
+*.mp4
+*.npz
+data/
+out/
+*.log
+__pycache__/
+.venv-ort/

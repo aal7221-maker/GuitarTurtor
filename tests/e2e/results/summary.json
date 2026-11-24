@@ -1,0 +1,475 @@
+{
+ "choo-lo": {
+  "case": "choo-lo",
+  "recording": {
+   "fps": 15,
+   "sub": 4,
+   "samples": 2453,
+   "t0": 0,
+   "t1": 40.882,
+   "page_logs": []
+  },
+  "vs_tab": {
+   "tab_notes": 175,
+   "fretted_notes": 80,
+   "tab_rows_with_duplicate_timestamp (not scored)": [],
+   "fingertip_on_string_and_fret_at_onset_pct": 98.8,
+   "on_within_50ms_pct": 100.0,
+   "assigned_finger_on_note_at_onset_pct": 98.8,
+   "picked_notes_landing_s": {
+    "median": -0.053,
+    "p10": -0.274,
+    "p90": -0.039,
+    "late_pct": 3.1
+   },
+   "legato_arrival_error_s (finger reaches the new fret minus tab onset)": {
+    "ham": {
+     "n": 4,
+     "median": -0.139,
+     "min": -0.295,
+     "max": 0.015
+    },
+    "slide": {
+     "n": 11,
+     "median": -0.058,
+     "min": -0.072,
+     "max": -0.048
+    }
+   },
+   "note_held_fraction_median (non-legato sources)": 1.0,
+   "notes_released_before_70pct_pct": 0.0,
+   "release_before_next_onset_s": {
+    "n": 2,
+    "median": 0.028,
+    "over_50ms_pct": 0.0
+   },
+   "open_strings_muted_by_a_fingertip_pct": 0.0,
+   "hud_names_tab_notes_pct": 100.0,
+   "misses": [
+    {
+     "t": 28.166,
+     "tab": "G2",
+     "finger": 2,
+     "tip_string": 2.0,
+     "tip_fret": 1.693,
+     "tip_h_mm": 1.57,
+     "legato_in": false,
+     "land_s": 0.017
+    }
+   ]
+  },
+  "picking_hand": {
+   "mode": "fingers",
+   "plucks": 160,
+   "tip_on_plucked_string_at_onset_pct": 100.0,
+   "string_error_median": 0.044
+  },
+  "techniques": {
+   "slide": {
+    "n": 11,
+    "hud_named_pct": 100.0,
+    "fretted_n": 11,
+    "motion_visible_pct": 100.0
+   },
+   "ham": {
+    "n": 4,
+    "hud_named_pct": 100.0,
+    "fretted_n": 4,
+    "motion_visible_pct": 100.0
+   },
+   "vib": {
+    "n": 1,
+    "hud_named_pct": 100.0,
+    "fretted_n": 0,
+    "motion_visible_pct": null
+   }
+  },
+  "vs_video": {
+   "video": "https://youtube.com/shorts/D1I84oQuGpM",
+   "tracked_frames_with_index_tip": 242,
+   "frames_total": 1164,
+   "hand_position_index_tip_within_1_fret_pct": 67.4,
+   "hand_position_median_abs_fret_diff": 0.662,
+   "best_lag_s (ours LATER than real by)": 0.0,
+   "within_1_fret_at_best_lag_pct": 67.4,
+   "index_tip_string_median_abs_diff": 1.04,
+   "finger_choice_agreement_pct": 78.9,
+   "finger_choice_n": 38,
+   "finger_pairs": {
+    "real 2 / ours 2": 30,
+    "real 2 / ours 1": 3,
+    "real 3 / ours 2": 2,
+    "real 3 / ours 1": 1,
+    "real 1 / ours 2": 1,
+    "real 1 / ours 3": 1
+   },
+   "tracker_vs_tab (real player, from handtrack)": {
+    "fretted_notes": 80,
+    "notes_with_hand": 0.762,
+    "exact": 0.475,
+    "within_1_fret": 0.575,
+    "exact_window": 0.537,
+    "within_1_window": 0.662
+   }
+  },
+  "sheet": "D:\\sharvin1\\Projects\\Music\\guitar3d\\tests\\e2e\\results\\choo-lo_sheet.png"
+ },
+ "rabba": {
+  "case": "rabba",
+  "recording": {
+   "fps": 15,
+   "sub": 4,
+   "samples": 1773,
+   "t0": 0,
+   "t1": 29.59,
+   "page_logs": []
+  },
+  "vs_tab": {
+   "tab_notes": 74,
+   "fretted_notes": 75,
+   "tab_rows_with_duplicate_timestamp (not scored)": [
+    {
+     "t": 11.436,
+     "q": 34.5,
+     "n": [
+      [
+       0,
+       17
+      ]
+     ]
+    },
+    {
+     "t": 11.436,
+     "q": 35,
+     "n": [
+      [
+       0,
+       19
+      ]
+     ]
+    },
+    {
+     "t": 19.598,
+     "q": 58.5,
+     "n": [
+      [
+       0,
+       12
+      ]
+     ]
+    },
+    {
+     "t": 19.598,
+     "q": 59,
+     "n": [
+      [
+       0,
+       17
+      ]
+     ]
+    }
+   ],
+   "fingertip_on_string_and_fret_at_onset_pct": 100.0,
+   "on_within_50ms_pct": 100.0,
+   "assigned_finger_on_note_at_onset_pct": 100.0,
+   "picked_notes_landing_s": {
+    "median": -0.059,
+    "p10": -0.289,
+    "p90": -0.045,
+    "late_pct": 1.3
+   },
+   "legato_arrival_error_s (finger reaches the new fret minus tab onset)": {},
+   "note_held_fraction_median (non-legato sources)": 0.888,
+   "notes_released_before_70pct_pct": 33.8,
+   "release_before_next_onset_s": {
+    "n": 53,
+    "median": 0.095,
+    "over_50ms_pct": 60.4
+   },
+   "open_strings_muted_by_a_fingertip_pct": 0.0,
+   "hud_names_tab_notes_pct": 100.0,
+   "misses": []
+  },
+  "picking_hand": {
+   "mode": "pick",
+   "plucks": 73,
+   "tip_on_plucked_string_at_onset_pct": 98.6,
+   "string_error_median": 0.212
+  },
+  "techniques": {
+   "pull": {
+    "n": 2,
+    "hud_named_pct": 100.0,
+    "fretted_n": 1,
+    "motion_visible_pct": 100.0
+   },
+   "bend": {
+    "n": 2,
+    "hud_named_pct": 100.0,
+    "fretted_n": 2,
+    "motion_visible_pct": 100.0
+   },
+   "vib": {
+    "n": 4,
+    "hud_named_pct": 100.0,
+    "fretted_n": 4,
+    "motion_visible_pct": 100.0
+   }
+  },
+  "vs_video": {
+   "video": "https://youtube.com/shorts/3efgaqeI9qk",
+   "tracked_frames_with_index_tip": 464,
+   "frames_total": 833,
+   "hand_position_index_tip_within_1_fret_pct": 23.7,
+   "hand_position_median_abs_fret_diff": 2.306,
+   "best_lag_s (ours LATER than real by)": 0.1,
+   "within_1_fret_at_best_lag_pct": 24.8,
+   "index_tip_string_median_abs_diff": 1.281,
+   "finger_choice_agreement_pct": 40.0,
+   "finger_choice_n": 5,
+   "finger_pairs": {
+    "real 4 / ours 1": 1,
+    "real 2 / ours 4": 1,
+    "real 1 / ours 1": 1,
+    "real 4 / ours 4": 1,
+    "real 3 / ours 1": 1
+   },
+   "tracker_vs_tab (real player, from handtrack)": {
+    "fretted_notes": 79,
+    "notes_with_hand": 0.848,
+    "exact": 0.063,
+    "within_1_fret": 0.127,
+    "exact_window": 0.19,
+    "within_1_window": 0.329
+   }
+  },
+  "sheet": "D:\\sharvin1\\Projects\\Music\\guitar3d\\tests\\e2e\\results\\rabba_sheet.png"
+ },
+ "knockin": {
+  "case": "knockin",
+  "lesson": "https://www.youtube.com/watch?v=pWIL4N6QZ-Y (full play-through 449-529 s)",
+  "ours_config": {
+   "chords": [
+    "G",
+    "D",
+    "Am",
+    "Am",
+    "G",
+    "D",
+    "C",
+    "C"
+   ],
+   "pattern": {
+    "id": "ballad",
+    "grid": "D - - - D - D u",
+    "step_beats": 0.5
+   },
+   "bpm": 112,
+   "bars_per_chord": 1,
+   "note": "chord mode only allows whole bars per chord and one pattern for all chords, so the half-bar G/D changes are entered as 1 bar each at double tempo (1 fast bar = 2 real beats); 'ballad' (D - - - D - D u) at 2x equals the lesson's G/D pattern"
+  },
+  "chords": {
+   "ours_per_halfbar": [
+    "G",
+    "D",
+    "Am",
+    "Am",
+    "G",
+    "D",
+    "C",
+    "C"
+   ],
+   "lesson_stated": [
+    "G",
+    "D",
+    "Am",
+    "Am",
+    "G",
+    "D",
+    "C",
+    "C"
+   ],
+   "ours_vs_lesson_pct": 100.0,
+   "audio_detected_per_halfbar (all cycles)": [
+    "G",
+    "D",
+    "Am",
+    "Am",
+    "G",
+    "D",
+    "C",
+    "C",
+    "G",
+    "D",
+    "Am",
+    "Am",
+    "G",
+    "D",
+    "C",
+    "C",
+    "Gm",
+    "D",
+    "Am",
+    "Am",
+    "Gm",
+    "D",
+    "C",
+    "C"
+   ],
+   "ours_vs_audio_pct": 91.7,
+   "audio_vs_lesson_pct (reference sanity)": 91.7,
+   "cycles": 3,
+   "tempo_bpm_real": 56.174
+  },
+  "strum": {
+   "ours_vs_lesson_pattern": {
+    "onset_f1": 0.824,
+    "precision": 0.875,
+    "recall": 0.778,
+    "direction_agree_pct": 100.0,
+    "matched": 28
+   },
+   "ours_vs_video_mean": {
+    "onset_f1": 0.756,
+    "precision": 0.792,
+    "recall": 0.724,
+    "direction_agree_pct": 92.067
+   },
+   "lesson_pattern_vs_video_mean (reference sanity)": {
+    "onset_f1": 0.883,
+    "direction_agree_pct": 94.2
+   },
+   "video_dir_matches_16th_parity_pct": 91.8,
+   "ours_slots": {
+    "0": "D",
+    "4": "D",
+    "6": "D",
+    "7": "U",
+    "8": "D",
+    "12": "D",
+    "14": "D",
+    "15": "U",
+    "16": "D",
+    "20": "D",
+    "22": "D",
+    "23": "U",
+    "24": "D",
+    "28": "D",
+    "30": "D",
+    "31": "U",
+    "32": "D",
+    "36": "D",
+    "38": "D",
+    "39": "U",
+    "40": "D",
+    "44": "D",
+    "46": "D",
+    "47": "U",
+    "48": "D",
+    "52": "D",
+    "54": "D",
+    "55": "U",
+    "56": "D",
+    "60": "D",
+    "62": "D",
+    "63": "U"
+   },
+   "lesson_slots": {
+    "0": "D",
+    "4": "D",
+    "6": "D",
+    "7": "U",
+    "8": "D",
+    "12": "D",
+    "14": "D",
+    "15": "U",
+    "16": "D",
+    "20": "D",
+    "22": "D",
+    "23": "U",
+    "25": "U",
+    "26": "D",
+    "27": "U",
+    "29": "U",
+    "30": "D",
+    "31": "U",
+    "32": "D",
+    "36": "D",
+    "38": "D",
+    "39": "U",
+    "40": "D",
+    "44": "D",
+    "46": "D",
+    "47": "U",
+    "48": "D",
+    "52": "D",
+    "54": "D",
+    "55": "U",
+    "57": "U",
+    "58": "D",
+    "59": "U",
+    "61": "U",
+    "62": "D",
+    "63": "U"
+   },
+   "video_slots_cycle1": {
+    "4": "D",
+    "6": "D",
+    "7": "U",
+    "8": "D",
+    "12": "D",
+    "14": "D",
+    "15": "U",
+    "16": "D",
+    "20": "D",
+    "22": "D",
+    "23": "U",
+    "25": "U",
+    "26": "D",
+    "27": "U",
+    "29": "U",
+    "30": "D",
+    "31": "U",
+    "32": "D",
+    "36": "D",
+    "38": "D",
+    "39": "U",
+    "40": "D",
+    "44": "D",
+    "46": "D",
+    "47": "U",
+    "48": "D",
+    "52": "D",
+    "54": "D",
+    "55": "U",
+    "57": "U",
+    "58": "D",
+    "59": "U",
+    "61": "U",
+    "62": "D",
+    "63": "U"
+   },
+   "ours_up_strokes_strings": [
+    [
+     3,
+     8
+    ]
+   ],
+   "ours_up_strokes_touch_bass_strings_pct": 0.0
+  },
+  "execution_3d": {
+   "pick_moves_in_stroke_direction_pct": 100.0,
+   "stroke_strings_light_up_pct": 100.0,
+   "fingers_still_pressing_on_last_stroke_before_change (lesson: 0, lifted)": [
+    2,
+    3,
+    2,
+    2,
+    3,
+    3,
+    2
+   ]
+  },
+  "sheet": "D:\\sharvin1\\Projects\\Music\\guitar3d\\tests\\e2e\\results\\knockin_sheet.png"
+ }
+}

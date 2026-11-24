@@ -15,10 +15,12 @@ ok('basic pattern strokes and timing (90 bpm)', () => {
   assert.deepEqual(s.map(x => x.dir + x.step), ['D0', 'D2', 'U3', 'U5', 'D6', 'U7']);
   assert.ok(Math.abs(s[1].t - 2 * 0.5 * 60 / 90) < 1e-9);
 });
-ok('down low->high, up high->low, muted string skipped', () => {
+ok('down low->high, up high->low (G B e only), muted string skipped', () => {
   const s = strumTimeline(C, byId.basic, 90, { humanize: 0 });
   assert.deepEqual(s[0].strings, [1, 2, 3, 4, 5]);
-  assert.deepEqual(s[2].strings, [5, 4, 3, 2]);
+  assert.deepEqual(s[2].strings, [5, 4, 3]);
+  const u4 = strumTimeline(C, { ...byId.basic, stroke_strings: 'up4' }, 90, { humanize: 0, patterns: pats });
+  assert.deepEqual(u4[2].strings, [5, 4, 3, 2]);
   assert.ok(s[0].offsets.every((o, i, a) => i === 0 || o > a[i - 1]));
 });
 ok('per-string spread within 4-12 ms', () => {
@@ -45,5 +47,16 @@ ok('progression offsets bars and tags chord', () => {
   const t = progressionTimeline([{ shape: C, bars: 1 }, { shape: G, bars: 1 }], byId.down8, 120, { humanize: 0 });
   assert.equal(t.length, 16); assert.ok(Math.abs(t[8].t - 2) < 1e-9); assert.equal(t[8].chord, 1);
 });
+ok('per-chord beats (G:2 D:2 Am:4) and per-chord pattern', () => {
+  const D = ['x', 'x', 0, 2, 3, 2], Am = ['x', 0, 2, 2, 1, 0], p = byId.ballad16, bpm = 60;
+  const t = progressionTimeline([{ shape: G, beats: 2 }, { shape: D, beats: 2 }, { shape: Am, beats: 4 }], p, bpm, { humanize: 0 });
+  // half of the 16th ballad (D - - - D - D U) per 2-beat chord, the full bar on Am
+  assert.deepEqual(t.filter(x => x.chord === 0).map(x => x.dir + x.step), ['D0', 'D4', 'D6', 'U7']);
+  assert.ok(Math.abs(t.find(x => x.chord === 1).t - 2) < 1e-9 && Math.abs(t.find(x => x.chord === 2).t - 4) < 1e-9);
+  assert.equal(t.filter(x => x.chord === 2).map(x => x.dir).join(''), 'DDDUUDUUDU');
+  const o = progressionTimeline([{ shape: G, beats: 4 }, { shape: D, beats: 1.5, pattern: byId.quarters }], byId.down8, bpm, { humanize: 0 });
+  assert.equal(o.filter(x => x.chord === 1).length, 2);
+});
+ok('ballad16 grid', () => assert.equal(byId.ballad16.grid, 'D - - - D - D U - U D U - U D U'));
 ok('deterministic with seed', () => assert.deepEqual(strumTimeline(C, byId.basic, 90, { seed: 3 }), strumTimeline(C, byId.basic, 90, { seed: 3 })));
 console.log(n + ' tests passed');

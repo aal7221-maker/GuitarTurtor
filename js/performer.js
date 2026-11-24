@@ -3,8 +3,9 @@
 // offline self-check (tools/selfcheck.mjs), so what is measured is what is rendered.
 import * as THREE from 'three';
 import { contactX, fretX, fbWidth, stringY, stringZ, FRET_H } from './guitar.js';
-import { sample, FINGER_KEYS, PLUCK_X } from './timeline.js';
+import { sample, FINGER_KEYS, PLUCK_X, PRESS_Y as PRESS_Y_ } from './timeline.js';
 import { Spring3 } from './hand.js';
+import { STRUM, STRUM_Z0 } from './strumhand.js';
 
 const D2R = Math.PI / 180;
 // fretting-hand placement, fitted offline (node tools/selfcheck.mjs --fit-left) on fingertip error AND
@@ -49,9 +50,67 @@ export class Performer {
     this.anchor = new THREE.Vector3();
     this.pick = { base: new THREE.Vector3(), tip: new THREE.Vector3(), visible: false };
     this.lastState = null;
+    this.strumState = null;
+    this.tune = new Spring3(16);    // per-chord placement tweak (dx, dkz, dky) and finger tilt (da), smoothed across chord changes
+    this.tuneA = new Spring3(16);
   }
 
-  setEvents(events) { this.events = events; this.mode = events.mode || 'fingers'; this._pickReady = false; }
+  setEvents(events) {
+    this.events = events; this.mode = events.mode || 'fingers'; this._pickReady = false;
+    if (events.strum && this.left) this.tuneChords(events);
+  }
+
+  /** fretting-hand frame: knuckle anchor + finger/lateral axes (d* = per-chord tweaks, all 0 for tab songs) */
+  _leftFrame(anchorX, focus, dkz = 0, dky = 0, dalpha = 0) {
+    const alpha = LEFT.alpha + dalpha;
+    const anchor = new THREE.Vector3(anchorX, LEFT.ky + dky, -(fbWidth(anchorX) / 2 + LEFT.kz(focus) + dkz));
+    const lH = new THREE.Vector3(-1, 0, 0), fH = new THREE.Vector3(0, Math.sin(alpha), Math.cos(alpha));
+    if (WRIST.on) {
+      const fret = -12 * Math.log2(Math.max(1e-3, 1 - anchorX / 0.648));
+      const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), LEFT.yaw(fret));
+      lH.applyQuaternion(qYaw); fH.applyQuaternion(qYaw);
+      lH.applyAxisAngle(fH, LEFT.roll(focus));
+    }
+    return { anchor, lH, fH };
+  }
+
+  /**
+   * Chord shapes spread the fingers over all six strings, which the single fitted hand placement of the tab
+   * songs does not always reach (7-16 mm misses on G, C, B7). For each distinct shape, search a few placement
+   * tweaks (shift along the neck, knuckle distance/height, finger tilt) that minimise the static IK error of
+   * the fingertips on their exact fret positions; the winner is stored as ev.hand and blended in by update().
+   */
+  tuneChords(events) {
+    const L = this.left, cache = new Map(), V = THREE.Vector3;
+    const DX = [-0.012, -0.006, 0, 0.006], DKZ = [-0.012, -0.006, 0, 0.006, 0.012], DKY = [-0.012, 0, 0.012], DA = [-8, 0, 8].map(d => d * D2R);
+    for (const ev of events) {
+      if (ev.hand || (events.mixed && !ev.strummed)) continue;   // mixed songs: only the strummed (chord) events are tuned
+      const key = ev.pos + '|' + ev.notes.map(n => `${n.s}.${n.f}.${n.finger}`).join(',') + (ev.barre ? 'b' : '');
+      if (cache.has(key)) { ev.hand = cache.get(key); continue; }
+      const goals = {};
+      FINGER_KEYS.forEach((k, i) => { const n = ev.byFinger[i]; if (n) { const x = contactX(n.f); goals[k] = new V(x, PRESS_Y_, stringZ(n.s, x)); } });
+      const used = Object.keys(goals);
+      let best = { dx: 0, dkz: 0, dky: 0, da: 0 };
+      if (used.length) {
+        const focus = ev.fretted.length ? ev.fretted.reduce((a, n) => a + n.s, 0) / ev.fretted.length : 2.5;
+        const ax = 0.5 * (contactX(ev.pos) + contactX(ev.pos + 3)) - 0.01;
+        const cost = c => {
+          const fr = this._leftFrame(ax + c.dx, focus, c.dkz, c.dky, c.da);
+          L.setPlacement(fr.anchor, fr.lH, fr.fH);
+          L.solve(goals);
+          let mx = 0, sum = 0;
+          for (const k of used) { const e = L.chains[k].err * 1000; mx = Math.max(mx, e); sum += e; }
+          return mx + 0.3 * sum / used.length + 15 * (Math.abs(c.dx) + Math.abs(c.dkz) + Math.abs(c.dky)) + 3 * Math.abs(c.da);
+        };
+        let bc = cost(best);
+        if (bc > 0.6) for (const dx of DX) for (const dkz of DKZ) for (const dky of DKY) for (const da of DA) {
+          const c = { dx, dkz, dky, da }, v = cost(c);
+          if (v < bc - 1e-6) { bc = v; best = c; }
+        }
+      }
+      cache.set(key, best); ev.hand = best;
+    }
+  }
 
   update(T, dt, jumped) {
     const st = sample(this.events, T);
@@ -62,19 +121,19 @@ export class Performer {
     const ax = 0.5 * (contactX(st.pos) + contactX(st.pos + 3)) - 0.01;
     tmp.set(ax, st.focus ?? this.handSpring.x.y, 0);
     if (jumped) this.handSpring.snap(tmp); else this.handSpring.step(tmp, dt);
-    const anchorX = this.handSpring.x.x, focus = this.handSpring.x.y;
-    this.anchor.set(anchorX, LEFT.ky, -(fbWidth(anchorX) / 2 + LEFT.kz(focus)));
+    // chord events carry a per-shape placement tweak found by tuneChords() (zero for tab songs)
+    const ho = st.evH && st.evH.hand;
+    tmp.set(ho ? ho.dx : 0, ho ? ho.dkz : 0, ho ? ho.dky : 0);
+    if (jumped) this.tune.snap(tmp); else this.tune.step(tmp, dt);
+    tmp.set(ho ? ho.da : 0, 0, 0);
+    if (jumped) this.tuneA.snap(tmp); else this.tuneA.step(tmp, dt);
+    const anchorX = this.handSpring.x.x + this.tune.x.x, focus = this.handSpring.x.y;
+    const frame = this._leftFrame(anchorX, focus, this.tune.x.y, this.tune.x.z, this.tuneA.x.x);
+    this.anchor.copy(frame.anchor);
 
     const L = this.left;
     if (L) {
-      const lH = new THREE.Vector3(-1, 0, 0), fH = new THREE.Vector3(0, Math.sin(LEFT.alpha), Math.cos(LEFT.alpha));
-      if (WRIST.on) {
-        const fret = -12 * Math.log2(Math.max(1e-3, 1 - anchorX / 0.648));
-        const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), LEFT.yaw(fret));
-        lH.applyQuaternion(qYaw); fH.applyQuaternion(qYaw);
-        lH.applyAxisAngle(fH, LEFT.roll(focus));
-      }
-      L.setPlacement(this.anchor, lH, fH);
+      L.setPlacement(this.anchor, frame.lH, frame.fH);
       const goals = {};
       for (const k of FINGER_KEYS) {
         const g = st.targets[k];
@@ -108,6 +167,13 @@ export class Performer {
       if (h >= stringY(tip.x) - 1e-5) continue;          // not touching yet
       const fret = g.fret ?? Math.ceil(fretIndexAt(tip.x));
       if (!pressed[sIdx] || tip.x > pressed[sIdx].x) pressed[sIdx] = { x: tip.x, y: h, z: tip.z, fretX: fretX(Math.max(1, fret)) };
+      // barre chord: the same (index) finger lies across the other strings of the barre and presses them too
+      const bar = g.ev && g.ev.barre;
+      if (bar && k === 'index' && g.note && g.note.finger === 1) for (const s2 of bar.strings) {
+        if (s2 === sIdx) continue;
+        const p2 = { x: tip.x, y: h, z: stringZ(s2, tip.x), fretX: fretX(Math.max(1, fret)) };
+        if (!pressed[s2] || tip.x > pressed[s2].x) pressed[s2] = p2;
+      }
     }
 
     // ---- picking hand ----
@@ -115,7 +181,43 @@ export class Performer {
     this.pick.visible = false;
     if (R) {
       const { l: lR, f: fR } = rightAxes();
-      if (this.mode === 'pick') {
+      // chord strumming (js/chordsong.js); in a mixed song (js/songchords.js buildMixedTimeline) only inside the strummed
+      // bars' windows: null elsewhere, and the tab notes are picked below
+      const sg = this.events.strum ? this.events.strum.at(T) : null;
+      this.strumState = sg;
+      if (!sg || sg.blend >= 1) for (const k in this.rsprings) this.rsprings[k].from = null;
+      // approach into strummed bars (sg.blend < 1): the hand eases in on its springs from where the picking left it; on
+      // the path itself it is exact (crossing times matter) and the springs are kept on it, so picking resumes from there
+      const ease = (sp, v) => {
+        if (!sg || sg.blend == null) return v;
+        if (jumped || sg.blend >= 1) { sp.snap(v); sp.from = null; return v; }
+        if (!sp.from) sp.from = sp.x.clone();                       // where the picking left the hand
+        const u = sg.blend * sg.blend * (3 - 2 * sg.blend);
+        sp.snap(v.lerpVectors(sp.from, v, u));
+        return v;
+      };
+      if (sg && this.mode === 'pick') {
+        // pick held in the grip; the pick tip follows the strum path exactly (no spring: crossing times matter),
+        // and the wrist swings with the sweep (the tip stays on the path, the pick direction tilts)
+        this._pickPose();
+        ease(this.rsprings.pick, tmp.set(sg.x, sg.y, sg.z));
+        const dirZ = Math.max(-0.7, Math.min(1.0, 0.25 - 14 * (sg.z - STRUM_Z0)));
+        R.setPlacementAlign(this.pickDirArm, new THREE.Vector3(0, -1, dirZ), R.axesArm.f, fR.clone().setY(0), this.pickTipArm, tmp);
+        this.pick.tip.copy(this.pickTipArm).applyMatrix4(R.place);
+        this.pick.base.copy(this.pickBaseArm).applyMatrix4(R.place);
+        this.pick.visible = true;
+      } else if (sg) {
+        // fingers: the index fingertip sweeps the strings, the hand follows half of the sweep, thumb and
+        // middle/ring trail the index loosely
+        const zc = stringZ(2.5, PLUCK_X);
+        R.setPlacement(new THREE.Vector3(PLUCK_X + RIGHT.dx + (sg.x - STRUM.x), stringY(PLUCK_X) + RIGHT.ky + 0.4 * (sg.y - stringY(sg.x)), zc + RIGHT.kz + 0.55 * (sg.z - STRUM_Z0)), lR, fR);
+        const goals = { index: ease(this.rsprings.index, new THREE.Vector3(sg.x, sg.y, sg.z)) };
+        goals.thumb = ease(this.rsprings.thumb, new THREE.Vector3(sg.x - 0.022, sg.y + 0.010, sg.z - sg.sg * 0.006));
+        goals.middle = ease(this.rsprings.middle, new THREE.Vector3(sg.x + 0.003, sg.y + 0.007, sg.z + 0.008));
+        goals.ring = ease(this.rsprings.ring, new THREE.Vector3(sg.x + 0.010, sg.y + 0.009, sg.z + 0.015));
+        goals.pinky = goals.ring.clone().add(new THREE.Vector3(0.012, 0.004, 0.008));
+        R.solve(goals);
+      } else if (this.mode === 'pick') {
         this._pickPose();
         const g = st.right.pick;
         const sp = this.rsprings.pick;
@@ -142,7 +244,7 @@ export class Performer {
         if (goals.ring) goals.pinky = goals.ring.clone().add(new THREE.Vector3(0.016, 0.008, 0.008));
         R.solve(goals);
       }
-      R.setForearm(ELBOW_R);
+      R.setForearm(this.strumState ? ELBOW_R.clone().add(new THREE.Vector3(0, 0, 3 * (this.strumState.z - STRUM_Z0))) : ELBOW_R);
     }
     return { st, pressed, anchor: this.anchor };
   }

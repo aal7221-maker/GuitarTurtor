@@ -68,7 +68,7 @@ function voice(ctx, dest, t, startMidi, dur, o, mode) {
     lfo.start(t); lfo.stop(t + dur + 0.4);
   }
   const len = o.pm ? Math.min(dur, 0.13) : dur;
-  const peak = (o.soft ? 0.6 : 1) * (dist ? 0.5 : 0.32);
+  const peak = (o.soft ? 0.6 : 1) * (o.vel ?? 1) * (dist ? 0.5 : 0.32);
   if (dist) {
     filt.frequency.setValueAtTime(o.pm ? 650 : 3400, t);
     filt.frequency.exponentialRampToValueAtTime(o.pm ? 260 : 1500, t + Math.max(0.05, Math.min(0.45, len)));
@@ -109,7 +109,11 @@ function encodeWav(buf) {
 export async function renderSong(events, mode, seconds) {
   const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   const ctx = new Ctx(1, Math.ceil(SR * seconds), SR);
-  const dest = buildChain(ctx, mode);
+  addNotes(ctx, buildChain(ctx, mode), events, mode);
+  return encodeWav(await ctx.startRendering());
+}
+
+function addNotes(ctx, dest, events, mode) {
   events.forEach((e, i) => {
     const next = events[i + 1], prev = events[i - 1];
     const legatoIn = prev && (prev.slide || prev.ham || prev.pull);
@@ -131,5 +135,70 @@ export async function renderSong(events, mode, seconds) {
       }, mode);
     });
   });
+}
+
+// ---------- chord strumming ----------
+const OPEN_LOW = [40, 45, 50, 55, 59, 64];      // chords/ order: low E -> high e
+
+/** short percussive "chuck": band-passed noise, no pitch, no sustain */
+function chuck(ctx, dest, t, vel) {
+  const n = Math.floor(ctx.sampleRate * 0.06), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+  let seed = 12345;
+  for (let i = 0; i < n; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; d[i] = (seed / 2147483648 - 1) * Math.exp(-i / (ctx.sampleRate * 0.012)); }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.9;
+  const g = ctx.createGain(); g.gain.setValueAtTime(Math.max(0.05, vel) * 1.1, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  src.connect(bp).connect(g).connect(dest);
+  src.start(t);
+}
+
+/**
+ * Render a stroke list (chords/strum_model.js: strings low-E-first, per-string offsets, velocity, muted) to a WAV Blob.
+ * mode 'pick' = distorted electric chain, otherwise clean acoustic. opts.click = {bpm, beatsPerBar, startT} adds a metronome.
+ */
+export async function renderStrokes(strokes, mode, seconds, opts = {}) {
+  const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const ctx = new Ctx(1, Math.ceil(SR * seconds), SR);
+  addStrokes(ctx, buildChain(ctx, mode === 'pick' ? 'pick' : 'fingers'), strokes, mode);
+  if (opts.click) {
+    const { bpm, beatsPerBar, startT = 0 } = opts.click, beat = 60 / bpm;
+    for (let b = 0, t = startT; t < seconds - 0.1; b++, t = startT + b * beat) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = b % beatsPerBar === 0 ? 1500 : 1000;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(b % beatsPerBar === 0 ? 0.16 : 0.1, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+      o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.06);
+    }
+  }
+  return encodeWav(await ctx.startRendering());
+}
+
+function addStrokes(ctx, dest, strokes, mode) {
+  strokes.forEach((st, i) => {
+    const vel = st.velocity ?? 0.7;
+    if (st.muted === 'dead') { chuck(ctx, dest, Math.max(0, st.t), vel * 0.8); return; }
+    // strings stop ringing when the same string is struck again or the chord changes (the fretting hand lifts)
+    const change = strokes.find((x, j) => j > i && x.chord !== st.chord);
+    st.strings.forEach((sl, k) => {
+      const ts = st.t + st.offsets[k];
+      const again = strokes.find((x, j) => j > i && x.strings.includes(sl));
+      let end = ts + 2.2;
+      if (again) end = Math.min(end, again.t + again.offsets[again.strings.indexOf(sl)]);
+      if (change) end = Math.min(end, change.t + 0.03);
+      if (Number.isFinite(st.ringUntil)) end = Math.min(end, st.ringUntil);   // mixed songs: stop when the notes take over
+      const fret = st.frets ? st.frets[k] : 0;
+      voice(ctx, dest, Math.max(0, ts), OPEN_LOW[sl] + fret, Math.max(0.1, end - ts), { pm: !!st.muted, vel: 0.35 + 0.65 * vel * (st.dir === 'U' ? 0.9 : 1) }, mode === 'pick' ? 'pick' : 'fingers');
+    });
+  });
+}
+
+/** a song that mixes single notes (tab events, as renderSong) and strummed bars (strokes, as renderStrokes) in one take */
+export async function renderMixed(events, strokes, mode, seconds) {
+  const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const ctx = new Ctx(1, Math.ceil(SR * seconds), SR);
+  const dest = buildChain(ctx, mode === 'pick' ? 'pick' : 'fingers');
+  addNotes(ctx, dest, events, mode === 'pick' ? 'pick' : 'fingers');
+  addStrokes(ctx, dest, strokes, mode);
   return encodeWav(await ctx.startRendering());
 }

@@ -1,0 +1,19 @@
+{
+ "onset": 0.5,
+ "frame": 0.4,
+ "min_ms": 60.0,
+ "high": 0.75,
+ "group_ms": 50.0,
+ "merge_ms": 70.0,
+ "max_poly": 1,
+ "open_cost": 0.0,
+ "str_change": 1.0,
+ "str_jump": 0.25,
+ "shift": 0.08,
+ "big_shift": 0.3,
+ "span": 4,
+ "beam": 64,
+ "drone": 0.6,
+ "fret_pen": 0.01,
+ "same_str_bonus": 0.0
+}

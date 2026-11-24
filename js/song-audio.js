@@ -55,5 +55,7 @@ export function shiftScore(score, seconds) {
   if (!seconds) return score;
   const time = t => +(t + seconds).toFixed(3);
   return { ...score, grid: score.grid?.map(time), notes: score.notes.map(n => ({ ...n, t: time(n.t) })),
-    ...(score.chords ? { chords: score.chords.map(c => ({ ...c, t0: time(c.t0), t1: time(c.t1) })) } : {}) };
+    ...(score.chords ? { chords: score.chords.map(c => ({ ...c, t0: time(c.t0), t1: time(c.t1) })) } : {}),
+    ...(score.strum ? { strum: { ...score.strum, t_bar0: score.strum.t_bar0 == null ? null : time(score.strum.t_bar0),
+      sections: score.strum.sections?.map(c => ({ ...c, t0: time(c.t0), t1: time(c.t1) })), strokes: score.strum.strokes.map(k => ({ ...k, t: time(k.t) })) } } : {}) };
 }

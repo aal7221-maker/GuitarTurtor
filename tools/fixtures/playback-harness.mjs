@@ -13,7 +13,7 @@ export function playbackHarness(songs, loadAudio) {
     SONGS: songs, songKey: '', ui, audio, audioOK: false, internalT: 0, lastT: null, playing: false,
     events: [], duration: 1, perf: null, learn: { setEvents() {} }, ytActive: false,
     yt: { async load() { sources.push('video'); }, setRate() {}, seek() {}, time: () => 0, hide() {}, pause() {}, play() {} },
-    chordPanel: { setScore: score => panel.push(score), setSegments() {} },
+    curScore: null,
     document: { getElementById: () => null }, setStatus() {}, poke() {}, console,
     normalizeScore, solveFingering, prepareTimeline, shiftScore, loadSongAudio: loadAudio,
     renderSong: async () => { sources.push('synth'); return new Blob(['synth']); },

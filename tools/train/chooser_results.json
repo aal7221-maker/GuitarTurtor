@@ -1,0 +1,156 @@
+{
+ "split60": {
+  "gs_only": {
+   "train_oracle": {
+    "choo-lo": 0.159,
+    "locked-away": 0.67
+   },
+   "held_oracle": {
+    "choo-lo": 0.149,
+    "locked-away": 0.649
+   },
+   "held_e2e_exact": {
+    "choo-lo": 0.09,
+    "locked-away": 0.251
+   },
+   "gs_test": 0.688
+  },
+  "ours_only": {
+   "train_oracle": {
+    "choo-lo": 1.0,
+    "locked-away": 1.0
+   },
+   "held_oracle": {
+    "choo-lo": 0.567,
+    "locked-away": 0.918
+   },
+   "held_e2e_exact": {
+    "choo-lo": 0.284,
+    "locked-away": 0.394
+   },
+   "gs_test": 0.494
+  },
+  "gs+ours_w10": {
+   "train_oracle": {
+    "choo-lo": 0.159,
+    "locked-away": 0.771
+   },
+   "held_oracle": {
+    "choo-lo": 0.149,
+    "locked-away": 0.892
+   },
+   "held_e2e_exact": {
+    "choo-lo": 0.09,
+    "locked-away": 0.348
+   },
+   "gs_test": 0.694
+  },
+  "gs+ours_w25": {
+   "train_oracle": {
+    "choo-lo": 0.28,
+    "locked-away": 0.95
+   },
+   "held_oracle": {
+    "choo-lo": 0.149,
+    "locked-away": 0.871
+   },
+   "held_e2e_exact": {
+    "choo-lo": 0.09,
+    "locked-away": 0.319
+   },
+   "gs_test": 0.698
+  },
+  "viterbi_default": {
+   "train_oracle": {
+    "choo-lo": 0.869,
+    "locked-away": 0.39
+   },
+   "held_oracle": {
+    "choo-lo": 0.866,
+    "locked-away": 0.401
+   },
+   "held_e2e_exact": {
+    "choo-lo": 0.388,
+    "locked-away": 0.28
+   },
+   "gs_test": 0.429
+  },
+  "viterbi_tuned": {
+   "train_oracle": {
+    "choo-lo": 0.869,
+    "locked-away": 0.39
+   },
+   "held_oracle": {
+    "choo-lo": 0.866,
+    "locked-away": 0.401
+   },
+   "held_e2e_exact": {
+    "choo-lo": 0.388,
+    "locked-away": 0.28
+   },
+   "gs_test": 0.429
+  }
+ },
+ "loso": {
+  "gs_only": {
+   "choo-lo": {
+    "oracle": 0.155,
+    "e2e_exact": 0.178,
+    "gs_test": 0.688
+   },
+   "locked-away": {
+    "oracle": 0.666,
+    "e2e_exact": 0.294,
+    "gs_test": 0.688
+   }
+  },
+  "ours_only": {
+   "choo-lo": {
+    "oracle": 0.109,
+    "e2e_exact": 0.075,
+    "gs_test": 0.669
+   },
+   "locked-away": {
+    "oracle": 0.478,
+    "e2e_exact": 0.246,
+    "gs_test": 0.254
+   }
+  },
+  "gs+ours_w10": {
+   "choo-lo": {
+    "oracle": 0.155,
+    "e2e_exact": 0.178,
+    "gs_test": 0.662
+   },
+   "locked-away": {
+    "oracle": 0.675,
+    "e2e_exact": 0.312,
+    "gs_test": 0.698
+   }
+  },
+  "gs+ours_w25": {
+   "choo-lo": {
+    "oracle": 0.155,
+    "e2e_exact": 0.178,
+    "gs_test": 0.694
+   },
+   "locked-away": {
+    "oracle": 0.661,
+    "e2e_exact": 0.308,
+    "gs_test": 0.615
+   }
+  },
+  "viterbi_default": {
+   "choo-lo": {
+    "oracle": 0.868,
+    "e2e_exact": 0.598,
+    "gs_test": 0.429
+   },
+   "locked-away": {
+    "oracle": 0.392,
+    "e2e_exact": 0.25,
+    "gs_test": 0.429
+   }
+  }
+ }
+}

@@ -4,3 +4,7 @@ audio/*.mp3
 audio/*.wav
 # claude.ai artifact build of index.html
 artifact.html
+
+# vendored chord model (BTC, MIT) copied locally for tools/chords_from_audio.py; not redistributed here
+chords/third_party/
+chords/__pycache__/

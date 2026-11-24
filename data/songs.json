@@ -22,5 +22,13 @@
     "audio": "audio/falling-in-love-with-you.mp3",
     "video": "xdX4ReZnJVk",
     "mode": "fingers"
+  },
+  {
+    "id": "locked-away",
+    "label": "Locked Away (R. City ft. Adam Levine)",
+    "data": "data/score-locked-away.json",
+    "audio": "audio/locked-away.mp3",
+    "video": "UtL5Ogfxqy4",
+    "mode": "fingers"
   }
 ]

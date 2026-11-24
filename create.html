@@ -31,6 +31,7 @@
   .row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .row2 { display: grid; grid-template-columns: 1fr 140px; gap: 10px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 520px) { .row3, .row2 { grid-template-columns: 1fr; } }
   button, .btn { font: 700 16px var(--display); letter-spacing: .02em; color: #fff; background: var(--blue); border: 0; border-radius: 10px;
     padding: 11px 14px; cursor: pointer; text-align: center; text-decoration: none; }
@@ -54,38 +55,51 @@
   .check { display: flex; align-items: center; gap: 8px; }
   .check input { width: auto; }
   input[type=file] { padding: 8px; }
+  .vision { display: grid; gap: 10px; }
+  .vision canvas { width: 100%; max-width: 360px; border-radius: 10px; background: #000; cursor: crosshair; justify-self: start; }
 </style>
 <script type="importmap">
 {
   "imports": {
     "./js/audio-chords.js": "./js/audio-chords.js?v=5e6a940615",
+    "./js/capture.js": "./js/capture.js?v=1f224da8b0",
     "./js/chord-agreement.js": "./js/chord-agreement.js?v=084f95c378",
     "./js/chordpanel.js": "./js/chordpanel.js?v=3c997c3bd6",
-    "./js/fingering.js": "./js/fingering.js?v=f432b99663",
+    "./js/chords-mode.js": "./js/chords-mode.js?v=be68a5ff86",
+    "./js/chordsong.js": "./js/chordsong.js?v=7f61fcf3ee",
+    "./js/fingering.js": "./js/fingering.js?v=b79f549da6",
     "./js/guitar.js": "./js/guitar.js?v=b2035c0bb4",
     "./js/hand-assets.js": "./js/hand-assets.js?v=734fe538b3",
     "./js/hand.js": "./js/hand.js?v=12a1c35fad",
+    "./js/handvision-worker.js": "./js/handvision-worker.js?v=0cbd14a4bd",
+    "./js/handvision.js": "./js/handvision.js?v=933483dd39",
     "./js/harmony.js": "./js/harmony.js?v=c706b78929",
-    "./js/learn.js": "./js/learn.js?v=2d95b0b374",
-    "./js/main.js": "./js/main.js?v=5c4e9e99f6",
+    "./js/learn.js": "./js/learn.js?v=067293e7d2",
+    "./js/main.js": "./js/main.js?v=13a6b59c17",
     "./js/markers.js": "./js/markers.js?v=3e79f88c05",
-    "./js/performer.js": "./js/performer.js?v=c481f18390",
-    "./js/song-audio.js": "./js/song-audio.js?v=bebed89fbe",
-    "./js/songmaker.js": "./js/songmaker.js?v=2d2a714b99",
+    "./js/performer.js": "./js/performer.js?v=6dcaff216f",
+    "./js/song-audio.js": "./js/song-audio.js?v=508927f5b5",
+    "./js/songchords.js": "./js/songchords.js?v=7e3114635e",
+    "./js/songmaker.js": "./js/songmaker.js?v=419cc97c1b",
+    "./js/strumdetect.js": "./js/strumdetect.js?v=1f8d2fa78a",
+    "./js/strumhand.js": "./js/strumhand.js?v=61582e91d4",
     "./js/subdivide.js": "./js/subdivide.js?v=94d1f9485e",
-    "./js/synth.js": "./js/synth.js?v=2f513eadac",
-    "./js/tabstrip.js": "./js/tabstrip.js?v=93e7f68297",
+    "./js/synth.js": "./js/synth.js?v=550a7a3721",
+    "./js/tabstrip.js": "./js/tabstrip.js?v=2b2709df34",
     "./js/theory.js": "./js/theory.js?v=c9eb754cfc",
-    "./js/timeline.js": "./js/timeline.js?v=0698ba9c14",
+    "./js/timeline.js": "./js/timeline.js?v=e49a97e17b",
     "./chords/chordnamer.js": "./chords/chordnamer.js?v=7a98aa55ed"
   }
 }
 </script>
-<link rel="modulepreload" href="js/songmaker.js?v=2d2a714b99">
+<link rel="modulepreload" href="js/songmaker.js?v=419cc97c1b">
 <link rel="modulepreload" href="js/chord-agreement.js?v=084f95c378">
 <link rel="modulepreload" href="chords/chordnamer.js?v=7a98aa55ed">
-<link rel="modulepreload" href="js/song-audio.js?v=bebed89fbe">
+<link rel="modulepreload" href="js/song-audio.js?v=508927f5b5">
 <link rel="modulepreload" href="js/audio-chords.js?v=5e6a940615">
+<link rel="modulepreload" href="js/strumdetect.js?v=1f8d2fa78a">
+<link rel="modulepreload" href="js/capture.js?v=1f224da8b0">
+<link rel="modulepreload" href="js/handvision.js?v=933483dd39">
 </head>
 <body>
 <main>
@@ -116,7 +130,12 @@
       <button class="secondary" id="mic" type="button">Record mic</button>
       <button class="secondary" id="cap" type="button">Capture the video</button>
     </div>
-    <p class="note">Capture: Chrome asks what to share. Choose <b>this tab</b> and turn on <b>Share tab audio</b>; the video starts playing and is recorded until you press Stop. Don’t pause or seek while it records.</p>
+    <p class="note">Capture: Chrome asks what to share. Choose <b>this tab</b> and turn on <b>Share tab audio</b>. The video then fills the window, plays at 1× and stops by itself at the end (or press <b>Esc</b>); the tab is written straight after.</p>
+    <div class="pair">
+      <label for="capFrom">Capture from (s)<input id="capFrom" type="number" min="0" step="0.1" value="0"></label>
+      <label for="capTo">Stop at (s)<input id="capTo" type="number" min="0" step="0.1" placeholder="end of video"></label>
+    </div>
+    <p class="note">Running the local helper (<code>python songforge/server.py</code>)? Paste the link there to skip recording.</p>
     <div class="row2">
       <label for="model">Model
         <select id="model">
@@ -126,7 +145,26 @@
       </label>
       <label for="offset">Audio starts at video time (s)<input id="offset" type="number" step="0.01" value="0"></label>
     </div>
+    <label for="tabFrom">Work out strings and frets from
+      <select id="tabFrom">
+        <option value="audio">the sound only</option>
+        <option value="av">the sound + the fretting hand in the video (beta)</option>
+      </select>
+    </label>
+    <div class="vision" id="visBox" hidden>
+      <p class="note">The pitch decides each note; the fretting fingertips pick which string and fret play it. Capture the video (the player fills the window while capturing) or use a video file of the player. The neck should be in view with the nut or a few inlay dots.</p>
+      <label for="vidFile" class="btn secondary">Use a video file<input id="vidFile" type="file" accept="video/*" hidden></label>
+      <canvas id="visPreview" width="240" height="135" hidden></canvas>
+      <p class="status" id="visMsg"></p>
+      <div class="row3">
+        <label for="calA">Fret A (0 = nut)<input id="calA" type="number" min="0" max="20" value="0"></label>
+        <label for="calB">Fret B<input id="calB" type="number" min="1" max="22" value="12"></label>
+        <button class="secondary" id="visCalib" type="button">Calibrate grid</button>
+      </div>
+      <p class="note">Grid wrong in the preview? Press Calibrate grid, then click fret A on the low E string, fret A on the high e string, fret B on low E, fret B on high e.</p>
+    </div>
     <p class="status" id="audMsg">No audio yet.</p>
+    <p class="status ok" id="trimMsg" hidden><span id="trimTxt"></span> <button class="secondary" id="trimUndo" type="button">Undo</button></p>
     <label class="check"><input id="autoOpen" type="checkbox" checked>Open the 3D lesson when done</label>
     <button id="go" type="button" disabled>Write the tab</button>
     <div class="bar" id="bar" hidden><i></i></div>
@@ -154,11 +192,13 @@
 <script src="js/yt.js?v=080657586f"></script>
 <script src="js/user-songs.js?v=48d8d05ec1"></script>
 <script type="module">
-import { decodeAudio, transcribe, toScore, loadChordShapes, reconcileChords } from './js/songmaker.js';
+import { decodeAudio, transcribe, toScore, loadChordShapes, reconcileChords, findTrim, trimmedWav } from './js/songmaker.js';
 import { saveSongAudio, deleteSongAudio, shiftScore } from './js/song-audio.js';
 import { detectAudioChords } from './js/audio-chords.js';
+import { strumForScore, loadStrumPatterns } from './js/strumdetect.js';
+import { CaptureMachine, Theatre, videoAspect } from './js/capture.js';
 const $ = id => document.getElementById(id);
-let yt = null, videoId = '', audioBlob = null, audioLabel = '', last = null, rec = null, busy = false;
+let yt = null, videoId = '', audioBlob = null, audioLabel = '', last = null, rec = null, busy = false, lastRaw = null;
 
 const msg = (el, text, cls = '') => { $(el).textContent = text; $(el).className = 'status ' + cls; };
 const ytId = s => { s = s.trim(); const m = s.match(/(?:v=|youtu\.be\/|shorts\/|embed\/|live\/)([\w-]{11})/); return m ? m[1] : /^[\w-]{11}$/.test(s) ? s : ''; };
@@ -177,17 +217,89 @@ $('loadVid').onclick = async () => {
   msg('vidMsg', 'Loading the video…');
   try {
     yt = yt || new YTSync({ onError: c => msg('vidMsg', 'YouTube error ' + c + ' (the owner may block embedding).', 'err') });
+    yt.onState = s => { if (capture && capture.machine.player(s)) stopRec(); };   // video ended -> stop capturing
     await yt.load(id, $('name').value.trim() || 'Video');
     videoId = id; msg('vidMsg', 'Video loaded (bottom right). It plays with the finished tab.', 'ok');
   } catch (e) { msg('vidMsg', e.message, 'err'); }
 };
 
-function setAudio(blob, label, offset) {
-  audioBlob = blob; audioLabel = label;
-  if (offset != null) $('offset').value = offset.toFixed(2);
+function setAudio(blob, label, offset, track = null) {
+  audioBlob = blob; audioLabel = label; trim = null; lastBlob = null; visionTrack = track; visionJob = null;
+  if (offset != null) $('offset').value = (+offset.toFixed(2) || 0).toFixed(2);   // no "-0.00"
   msg('audMsg', 'Audio ready: ' + label, 'ok'); $('go').disabled = false;
+  showTrim();
+  trimJob = detectTrim(blob);
 }
-$('file').onchange = e => { const f = e.target.files[0]; if (f) setAudio(f, f.name, 0); };
+
+// Leading loading noise / silence (and a silent end) are cut before transcription; the cut seconds are added to "Audio
+// starts at video time", so note times still match the video. The stored recording is the kept part. Undo keeps it all.
+let trim = null, trimJob = null, lastBlob = null;
+const decoded = new WeakMap();
+async function decodeOnce(blob) { if (!decoded.has(blob)) decoded.set(blob, decodeAudio(blob)); return decoded.get(blob); }
+async function detectTrim(blob) {
+  try {
+    const y = await decodeOnce(blob);
+    if (blob !== audioBlob) return;
+    const t = findTrim(y, 22050);
+    if (!t.trimmed) return;
+    trim = t;
+    $('offset').value = ((parseFloat($('offset').value) || 0) + t.start).toFixed(2);
+    showTrim();
+  } catch (e) { console.warn('trim detection failed:', e); }
+}
+function showTrim() {
+  $('trimMsg').hidden = !trim;
+  if (!trim) return;
+  const parts = [trim.start > 0 && `${trim.start.toFixed(1)} s of silence at the start`, trim.end < trim.dur && `${(trim.dur - trim.end).toFixed(1)} s at the end`].filter(Boolean);
+  $('trimTxt').textContent = 'Trimmed ' + parts.join(' and ') + '.';
+}
+$('trimUndo').onclick = async () => {
+  if (!trim || busy) return;
+  $('offset').value = Math.max(0, (parseFloat($('offset').value) || 0) - trim.start).toFixed(2);
+  trim = null; showTrim();
+  msg('audMsg', 'Keeping the full recording.', 'ok');
+  // the tab was already written from the trimmed audio: write it again from the whole recording
+  if (last && lastBlob === audioBlob) {
+    UserSongs.remove(last.id); await deleteSongAudio(last.id);
+    await writeTab();
+  }
+};
+$('file').onchange = e => { const f = e.target.files[0]; if (f && avMode() && /^video\//.test(f.type)) visionFile(f); else if (f) setAudio(f, f.name, 0); };
+
+// ---------- sound + fretting hand (js/handvision.js, loaded only when used) ----------
+let vision = null, visionTrack = null, visionJob = null, capVision = null;
+const avMode = () => $('tabFrom').value === 'av';
+$('tabFrom').onchange = () => { $('visBox').hidden = !avMode(); };
+async function getVision() {
+  if (!vision) {
+    const { HandVision } = await import('./js/handvision.js');
+    vision = new HandVision({ canvas: $('visPreview'), onStatus: t => msg('visMsg', t) });
+  }
+  $('visPreview').hidden = false;
+  return vision;
+}
+const visSummary = tr => `Hand tracked: fingertips on the grid in ${tr.stats.tips} of ${tr.stats.frames} frames (grid found in ${tr.stats.grid}).`;
+async function visionFile(f) {
+  setAudio(f, f.name, 0);          // the file's own sound
+  const hv = await getVision(); hv.reset();
+  const job = visionJob = hv.processFile(f, { progress: p => msg('visMsg', `Tracking the hand… ${Math.round(100 * p)}%`) })
+    .then(tr => { if (job === visionJob) { visionTrack = tr; msg('visMsg', visSummary(tr), 'ok'); } return tr; })
+    .catch(err => { msg('visMsg', 'Hand tracking failed: ' + err.message, 'err'); return null; });
+}
+$('vidFile').onchange = e => { const f = e.target.files[0]; if (f) visionFile(f); };
+$('visCalib').onclick = async () => {
+  try { const hv = await getVision(); await hv.calibrate([Math.max(0, +$('calA').value || 0), Math.max(1, +$('calB').value || 12)]); }
+  catch (e) { msg('visMsg', e.message, 'err'); }
+};
+// the YouTube player's rectangle inside a capture of this tab (null when the capture is another surface)
+function ytCrop(v) {
+  const el = yt && yt.panel && (yt.panel.querySelector('iframe') || yt.panel.querySelector('.ytbody'));
+  if (!el) return null;
+  const r = el.getBoundingClientRect(), sx = v.videoWidth / innerWidth, sy = v.videoHeight / innerHeight;
+  if (!r.width || Math.abs(sx - sy) > 0.1 * sx) return null;
+  const x = Math.max(0, r.left * sx), y = Math.max(0, r.top * sy);
+  return { x, y, w: Math.min(v.videoWidth - x, r.width * sx), h: Math.min(v.videoHeight - y, r.height * sy) };
+}
 
 // Records a stream's audio until stop(); onStart runs when the recorder actually starts.
 function record(stream, btn, label, onStart) {
@@ -205,9 +317,12 @@ function record(stream, btn, label, onStart) {
   mr.onstop = async () => {
     stream.getTracks().forEach(t => t.stop()); btn.textContent = old; btn.classList.remove('rec'); rec = null;
     if (yt) yt.pause();
+    const vt = capVision ? capVision.stopStream() : null; capVision = null;
+    endCapture();
     setBusy(false);
     if (chunks.length) {
-      setAudio(new Blob(chunks, { type: mr.mimeType }), label + ' (' + new Date().toLocaleTimeString() + ')', rec_offset);
+      setAudio(new Blob(chunks, { type: mr.mimeType }), label + ' (' + new Date().toLocaleTimeString() + ')', rec_offset, vt && vt.frames.length ? vt : null);
+      if (vt) msg('visMsg', visSummary(vt), 'ok');
       await writeTab();
     } else msg('audMsg', 'No audio was recorded. Please try again.', 'err');
   };
@@ -238,54 +353,106 @@ $('mic').onclick = async () => {
 
 $('cap').onclick = async () => {
   if (busy) return;
-  if (rec) return rec.stop();
+  if (rec) return stopRec('user');
   setBusy(true);
   try {
     if (!yt || !yt.ready) throw new Error('Load the YouTube video first (step 1).');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) throw new Error('This browser can’t capture tab audio. Use Chrome on a computer, or upload a file.');
     yt.pause();
     const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true, selfBrowserSurface: 'include' });
+    // hands-free: the player fills the window (fullscreen if allowed) right away; the take stops by itself
+    const from = Math.max(0, parseFloat($('capFrom').value) || 0), machine = new CaptureMachine({ start: from, end: parseFloat($('capTo').value) });
+    const theatre = new Theatre(yt.panel, { aspect: videoAspect($('url').value), doc: document, win: window, onExit: why => stopRec(why) });
+    machine.arm(); capture = { machine, theatre, timer: null };
+    theatre.enter();
     // time alignment: audio t = 0 is when the recorder starts; once the video is playing, map back to video time
-    let t0 = 0;
+    let t0 = 0, capT0 = null;
+    if (avMode() && s.getVideoTracks && s.getVideoTracks().length) {
+      // keep the video frames too: fingertips are tracked on the full-window player (ytCrop reads its live rect), on the recorder's clock
+      capVision = await getVision(); capVision.reset();
+      capVision.startStream(s, { clock: () => capT0 == null ? null : (performance.now() - capT0) / 1000, crop: ytCrop });
+    }
     setBusy(false);
     record(s, $('cap'), 'Captured video audio', () => {
-      t0 = performance.now(); rec_offset = yt.time();
-      yt.play(yt.time(), 1);
+      t0 = capT0 = performance.now(); rec_offset = from;
+      machine.begin(t0);
+      yt.play(from, 1);
       const poll = setInterval(() => {
         if (!rec) return clearInterval(poll);
         if (yt.state === 1) { rec_offset = yt.time() - (performance.now() - t0) / 1000; clearInterval(poll); }
       }, 50);
+      if (capture && capture.machine === machine) capture.timer = setInterval(() => {
+        theatre.tick(machine.elapsed(performance.now()));
+        if (machine.tick(yt.time())) stopRec();
+      }, 200);
     });
-    msg('audMsg', 'Capturing… the video plays now. Press Stop when the part you want is over.');
-  } catch (e) { setBusy(false); msg('audMsg', 'Capture: ' + e.message, 'err'); }
+    msg('audMsg', 'Capturing… the video plays now and stops by itself at the end (Esc stops early).');
+  } catch (e) {
+    if (capVision) { capVision.stopStream(); capVision = null; }
+    endCapture(); setBusy(false); msg('audMsg', 'Capture: ' + e.message, 'err');
+  }
 };
+
+// ---------- hands-free capture: full-window player, auto-stop, then straight on to trimming + transcription ----------
+let capture = null;   // { machine: CaptureMachine, theatre: Theatre, timer }
+const STOPPED = { ended: 'the video ended', end: 'reached the stop time', esc: 'Esc', user: 'Stop', fullscreen: 'left fullscreen', shared: 'sharing stopped' };
+function stopRec(reason = 'user') {
+  if (capture) capture.machine.stop(reason);   // keeps the first reason; rec.stop() is idempotent
+  if (rec) rec.stop();
+}
+function endCapture() {
+  if (!capture) return;
+  const { machine, theatre, timer } = capture; capture = null;
+  clearInterval(timer); machine.stop('shared');            // no-op unless the stream ended on its own
+  theatre.exit();
+  const step = $('cap').closest ? $('cap').closest('.card') : null;
+  if (step && step.scrollIntoView) step.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  if (machine.reason) msg('audMsg', `Capture stopped (${STOPPED[machine.reason] || machine.reason}). Trimming and writing the tab…`);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && capture) { e.preventDefault(); stopRec('esc'); } });
 
 const bar = f => { $('bar').hidden = false; $('bar').firstChild.style.width = Math.round(100 * Math.max(0, Math.min(1, f))) + '%'; };
 function setBusy(value) {
   busy = value;
-  for (const id of ['file', 'mic', 'cap', 'model', 'offset', 'loadVid', 'url']) $(id).disabled = value;
+  for (const id of ['file', 'mic', 'cap', 'model', 'offset', 'loadVid', 'url', 'tabFrom', 'vidFile', 'capFrom', 'capTo']) $(id).disabled = value;
   $('go').disabled = value || !audioBlob;
 }
 async function writeTab() {
   if (!audioBlob || busy || rec) return;
   setBusy(true); $('result').hidden = true;
-  const blob = audioBlob, offset = parseFloat($('offset').value) || 0;
+  const blob = audioBlob;
   try {
     msg('audMsg', 'Decoding the audio…'); bar(0);
-    const y = await decodeAudio(blob);
+    await trimJob;
+    const offset = parseFloat($('offset').value) || 0, cut = trim;   // offset already includes the trimmed start
+    const full = await decodeOnce(blob);
+    const y = cut ? full.subarray(Math.floor(cut.start * 22050), Math.ceil(cut.end * 22050)) : full;
+    const kept = cut ? await trimmedWav(blob, cut.start, cut.end).catch(e => { console.warn(e); return null; }) : blob;
     const { notes, engine } = await transcribe(y, { engine: $('model').value, progress: (f, t) => { bar(f); msg('audMsg', t); } });
+    lastRaw = notes;
     const shapes = await loadChordShapes();
-    const localScore = toScore(notes, 0, 0.75, shapes);
+    let vis = null;
+    if (visionJob) { msg('audMsg', 'Waiting for the hand tracking…'); await visionJob; }
+    if (visionTrack && visionTrack.frames.some(f => f.tips)) {
+      const { visionCosts } = await import('./js/handvision.js'), shift = cut ? cut.start : 0;   // frames are on the untrimmed clock
+      vis = visionCosts({ frames: visionTrack.frames.map(f => ({ ...f, t: f.t - shift })) });
+    }
+    const localScore = toScore(notes, 0, 0.75, shapes, { vision: vis });
     msg('audMsg', 'Listening for chords…'); bar(0);
     localScore.chords = reconcileChords(await detectAudioChords(y, { progress: bar }), localScore.notes);
+    msg('audMsg', 'Listening for the strum pattern…'); await new Promise(r => setTimeout(r, 30));
+    try { const strum = strumForScore(y, localScore.chords, await loadStrumPatterns()); if (strum) localScore.strum = strum; }   // optional: omitted when not strummed
+    catch (e) { console.warn('strum detection failed:', e); }
     const score = shiftScore(localScore, offset);
     const title = $('name').value.trim() || audioLabel.replace(/\.\w+$/, '') || 'My song';
     const id = 'u-' + slug(title) + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
-    last = { id, title, artist: 'you', kind: 'Auto tab (' + engine + ')', label: title, video: videoId, mode: score.notes.some(n => n.n.length >= 3) ? 'pick' : 'fingers',
+    last = { id, title, artist: 'you', kind: 'Auto tab (' + engine + (vis ? ' + hand video' : '') + ')', label: title, video: videoId, mode: score.notes.some(n => n.n.length >= 3) ? 'pick' : 'fingers',
       audioOffset: offset, audioDuration: y.length / 22050,
       duration: +(score.notes[score.notes.length - 1].t + 2).toFixed(2), engine, created: new Date().toISOString(), score };
     const saved = UserSongs.save(last);
-    const audioSaved = saved && await saveSongAudio(id, blob);
+    // a trimmed take that could not be re-encoded is not stored (its clock would not match): playback uses video or synth
+    const audioSaved = saved && !!kept && await saveSongAudio(id, kept);
+    lastBlob = blob;
     $('bar').hidden = true;
     msg('audMsg', `Done with ${engine}.`, 'ok');
     $('resMsg').textContent = `“${title}”: ${score.notes.length} notes, ♩ ≈ ${Math.round(score.bpm)}` + (saved ? ' · saved in this browser' : ' · could not save here (storage blocked): download the JSON');
@@ -328,7 +495,7 @@ function showMine() {
   }
 }
 showMine();
-window.__songmaker = { get last() { return last; } };
+window.__songmaker = { get last() { return last; }, get vision() { return visionTrack; }, get hv() { return vision; }, get raw() { return lastRaw; } };
 </script>
 </body>
 </html>

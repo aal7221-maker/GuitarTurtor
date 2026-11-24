@@ -25,7 +25,7 @@ export class TabStrip {
     this.ctx = canvas.getContext('2d');
     this.seek = opts.seek;
     this.events = [];
-    this.bars = []; this.sections = []; this.pmRuns = []; this.minGap = 0.5;
+    this.bars = []; this.sections = []; this.pmRuns = []; this.minGap = 0.5; this.strokes = []; this.spans = [];
     this.anchors = [[0, 0], [1, 1]];
     this.pxPerBeat = 100;
     this.w = 300; this.h = 140; this.dpr = 1;
@@ -79,7 +79,42 @@ export class TabStrip {
     ev.forEach((e, i) => {
       if (e.pm) { if (run && i === run.b + 1) run.b = i; else { run = { a: i, b: i }; this.pmRuns.push(run); } }
     });
+    // strummed bars of a mixed song (js/songchords.js): strum arrows and chord names above the strings
+    this.strokes = (ev.strokes || []).map(st => ({ t: st.t, q: this.beatOf(st.t), dir: st.dir, muted: st.muted }));
+    this.spans = (ev.spans || []).filter(s => s.symbol).map(s => ({ t0: s.t0, t1: s.t1, q0: this.beatOf(s.t0), q1: this.beatOf(s.t1), symbol: s.symbol }));
     this.layout();
+  }
+
+  /** chord names (sticky while the chord is on screen) and one arrow per strum stroke: D down (amber), U up (blue) */
+  _drawStrum(T, qL, qR) {
+    const c = this.ctx, y0 = this.lineY(0);
+    c.font = `800 ${this.font + 1}px system-ui, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    for (let i = 0; i < this.spans.length; i++) {
+      const sp = this.spans[i];
+      if (sp.q1 < qL || sp.q0 > qR) continue;
+      const nx = this.spans[i + 1], xEnd = Math.min(this.xOfBeat(sp.q1), nx ? this.xOfBeat(nx.q0) : Infinity) - 6;
+      let x = Math.max(this.xOfBeat(sp.q0) - 3, this.gutter + 4);
+      const tw = c.measureText(sp.symbol).width;
+      if (x + tw > xEnd) x = xEnd - tw;
+      if (x + tw < this.gutter + 4) continue;
+      const now = T >= sp.t0 && T < sp.t1;
+      c.fillStyle = now ? ACCENT : '#cfd6e2';
+      c.fillText(sp.symbol, x, y0 - 29);
+    }
+    let cur = -1;
+    for (let i = 0; i < this.strokes.length && this.strokes[i].t <= T + 0.005; i++) cur = i;
+    for (let i = 0; i < this.strokes.length; i++) {
+      const st = this.strokes[i];
+      if (st.q < qL || st.q > qR) continue;
+      const x = this.xOfBeat(st.q), dir = st.dir === 'U' ? -1 : 1, isNow = i === cur && T - st.t < 0.2;
+      const L = isNow ? 6.5 : 5, cy = y0 - 17, tip = cy + dir * L, tail = cy - dir * L;
+      c.globalAlpha = i < cur || (i === cur && !isNow) ? 0.5 : 1;
+      c.strokeStyle = c.fillStyle = st.muted === 'dead' ? MUTED : dir > 0 ? ACCENT : '#4cc9f0';
+      c.lineWidth = isNow ? 2.4 : 1.7;
+      c.beginPath(); c.moveTo(x, tail); c.lineTo(x, tip - dir * 2.5); c.stroke();
+      c.beginPath(); c.moveTo(x, tip); c.lineTo(x - 3.2, tip - dir * 4); c.lineTo(x + 3.2, tip - dir * 4); c.closePath(); c.fill();
+      c.globalAlpha = 1;
+    }
   }
 
   _interp(x, xi, yi) {
@@ -104,7 +139,7 @@ export class TabStrip {
     this.font = small ? 12 : 13;
     this.gutter = small ? 20 : 26;
     this.playX = Math.round(clamp(this.w * 0.28, 70, 340));
-    this.topY = small ? 40 : 46;                    // high e line
+    this.topY = (small ? 40 : 46) + (this.strokes && this.strokes.length ? 18 : 0);   // high e line (room for strum arrows)
     this.gap = Math.min(18, (this.h - this.topY - 10) / 5);
     // wider spacing on wide screens, a little tighter on phones
     const perNote = small ? 24 : 30;
@@ -156,6 +191,8 @@ export class TabStrip {
       if (x + tw > xEnd) x = xEnd - tw;
       c.fillStyle = ACCENT; c.fillText(sc.label, x, 13);
     }
+
+    if (this.strokes && (this.strokes.length || this.spans.length)) this._drawStrum(T, qL, qR);
 
     // palm mute
     c.font = `600 ${this.font - 3}px system-ui, sans-serif`;

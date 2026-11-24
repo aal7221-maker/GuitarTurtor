@@ -24,6 +24,68 @@ export async function decodeAudio(blob) {
   return out;
 }
 
+
+// ---------- silence trimming ----------
+// Screen / tab captures, mic takes and uploads often start with seconds of loading or silence (and end with some).
+// findTrim: the first SUSTAINED musical onset = frames well above the noise floor AND pitched (autocorrelation peak) for at
+// least `sustain` s; the cut starts `pre` s before it (extended back over quieter notes joined to it). The end keeps the
+// decay of the last note plus `tail` s. Only quiet audio is ever cut; nothing is trimmed below `minTrim` s.
+const pct = (a, p) => { const s = Float64Array.from(a).sort(); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : -120; };
+function pitched(y, i0, W, sr) {
+  const l0 = Math.max(1, Math.floor(sr / 1100)), l1 = Math.ceil(sr / 75);   // guitar fundamentals ~80-1000 Hz
+  let r0 = 0; for (let i = 0; i < W; i++) r0 += y[i0 + i] * y[i0 + i];
+  if (r0 <= 0) return 0;
+  let best = 0;
+  for (let l = l0; l <= l1; l++) {
+    let r = 0; for (let i = 0; i < W - l; i++) r += y[i0 + i] * y[i0 + i + l];
+    best = Math.max(best, r / r0 * W / (W - l));
+  }
+  return best;
+}
+/** @returns {{start:number, end:number, dur:number, trimmed:boolean}} seconds; trimmed = there is something worth cutting */
+export function findTrim(y, sr = SR, { hop = 0.02, win = 0.04, sustain = 0.3, pre = 0.2, tail = 0.5, minTrim = 0.5, minTail = 1.0 } = {}) {
+  const dur = y.length / sr, none = { start: 0, end: dur, dur, trimmed: false };
+  const H = Math.round(hop * sr), W = Math.round(win * sr), n = Math.floor((y.length - W) / H) + 1;
+  if (n < 20) return none;
+  const db = new Float64Array(n);
+  for (let k = 0; k < n; k++) { let e = 0; for (let i = 0; i < W; i++) { const v = y[k * H + i]; e += v * v; } db[k] = 10 * Math.log10(e / W + 1e-12); }
+  const floor = pct(db, 0.05), peak = pct(db, 0.98);
+  if (peak < -60 || peak - floor < 15) return none;                    // all silence, or no quiet part to cut
+  const thr = Math.max(floor + 15, peak - 35, -60), quiet = floor + 6;
+  const need = Math.ceil(sustain / hop), pitch = new Map();
+  const musical = k => db[k] > thr && (pitch.has(k) ? pitch.get(k) : (pitch.set(k, pitched(y, k * H, W, sr) > 0.35), pitch.get(k)));
+  let on = -1;
+  for (let k = 0; k + need <= n && on < 0; k++) {
+    if (!musical(k)) continue;
+    let c = 0; for (let j = k; j < k + need; j++) if (musical(j)) c++;
+    if (c >= 0.8 * need) on = k;
+  }
+  if (on < 0) return none;
+  // quieter notes joined to the onset belong to the music (gaps up to 0.1 s)
+  for (let k = on - 1, gap = 0; k >= 0; k--) { if (db[k] > quiet) { on = k; gap = 0; } else if (++gap > 0.1 / hop) break; }
+  let last = n - 1; while (last > on && db[last] <= quiet) last--;
+  const start = Math.max(0, on * H / sr - pre), end = Math.min(dur, (last * H + W) / sr + tail);
+  const s = start >= minTrim ? +start.toFixed(2) : 0, e = dur - end >= minTail ? +end.toFixed(2) : dur;
+  return { start: s, end: e, dur, trimmed: s > 0 || e < dur };
+}
+
+/** the kept part [start, end] s of a recording as a WAV Blob (mono 44.1 kHz, 16-bit), for storage with the trimmed tab */
+export async function trimmedWav(blob, start, end, sr = 44100) {
+  const ctx = new OfflineAudioContext(1, 1, sr);
+  const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+  const a = Math.max(0, Math.floor(start * sr)), b = Math.min(buf.length, Math.ceil(end * sr)), n = Math.max(0, b - a);
+  const dv = new DataView(new ArrayBuffer(44 + 2 * n));
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); dv.setUint32(4, 36 + 2 * n, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+  dv.setUint16(22, 1, true); dv.setUint32(24, sr, true); dv.setUint32(28, 2 * sr, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  w(36, 'data'); dv.setUint32(40, 2 * n, true);
+  const chs = Array.from({ length: buf.numberOfChannels }, (_, c) => buf.getChannelData(c));
+  for (let i = 0; i < n; i++) {
+    let v = 0; for (const ch of chs) v += ch[a + i] / chs.length;
+    v = Math.max(-1, Math.min(1, v)); dv.setInt16(44 + 2 * i, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+  }
+  return new Blob([dv], { type: 'audio/wav' });
+}
 async function download(url, label, progress, done = 0, all = 1) {
   let cache = null;
   try { cache = await caches.open('songmaker-v1'); } catch { /* no Cache Storage */ }
@@ -221,16 +283,19 @@ function skyline(raw, high = 0.75, lib = null) {
 // String/fret by beam-search Viterbi following the hand (port of pitch-model/transcribe.py: assign/trans_cost):
 // changing string costs 1 (+0.25 per string), moving the hand 0.08/fret (+0.3 beyond 4 frets), open strings keep the
 // hand where it was, and a string just played open is not fretted next (drone idiom).
-function fingering(events, beam = 64) {
+// vis (optional, from the hand video): per event, an extra cost per candidate = distance in frets from the fretting
+// fingertips (js/handvision.js visionCosts), or null where the hand is not visible (plain Viterbi there).
+const candidates = p => OPEN.map((o, s) => [s, p - o]).filter(([, f]) => f >= 0 && f <= MAX_FRET);
+function fingering(events, beam = 64, vis = null, w = 1) {
   let beams = [{ c: 0, path: [], anc: null }];
   for (const e of events) {
-    const cands = OPEN.map((o, s) => [s, e.p - o]).filter(([, f]) => f >= 0 && f <= MAX_FRET);
+    const cands = candidates(e.p), vc = vis ? e.vc : null;
     const next = new Map();
     for (const b of beams) {
       const recentOpen = new Set(b.path.slice(-2).filter(([, f]) => f === 0).map(([s]) => s));
-      for (const pos of cands) {
+      for (const [ci, pos] of cands.entries()) {
         const [s, f] = pos;
-        let c = b.c + 0.01 * f;
+        let c = b.c + 0.01 * f + (vc ? w * vc[ci] : 0);
         if (f > 0 && b.anc) {
           const [sa, fa] = b.anc;
           if (sa !== s) c += 1 + 0.25 * Math.abs(sa - s);
@@ -272,10 +337,22 @@ function beatGrid(times, end) {
 
 // raw notes [{t,e,p,a}] (seconds into the audio) -> {bpm, grid, notes:[{t,q,d,n:[[string,fret]],sec}]}.
 // offset = video time at the audio's start, so note times are video times.
-export function toScore(raw, offset = 0, high = 0.75, lib = null) {
+// vision (optional): (t, candidates) -> cost per candidate | null, t on the raw (audio) clock. Then the pitch still decides
+// the note, the fingertips pick among the positions that give it, every note gets conf (0-1, how sure the string/fret
+// choice is) and the score is marked source: 'audio+video'.
+export function toScore(raw, offset = 0, high = 0.75, lib = null, { vision = null, visionWeight = 0.5 } = {}) {
   const ev = skyline(raw, high, lib).map(e => ({ ...e, t: e.t + offset })).filter(e => e.t >= 0);
   if (!ev.length) throw new Error('No notes were found in this audio.');
-  const pos = fingering(ev);
+  if (vision) for (const e of ev) if (!e.chord) e.vc = vision(e.t - offset, candidates(e.p));
+  const pos = fingering(ev, 64, vision, visionWeight);
+  const conf = (e, p) => {
+    if (e.chord) return 0.5;
+    const cs = candidates(e.p);
+    if (cs.length < 2) return 1;
+    if (!e.vc) return 0.4;                                   // position guessed from the hand path only
+    const k = cs.findIndex(([s, f]) => s === p[0] && f === p[1]), z = e.vc.map(v => Math.exp(-2 * v)), sum = z.reduce((a, b) => a + b, 0);
+    return k < 0 || !sum ? 0.4 : +(z[k] / sum).toFixed(2);
+  };
   const end = ev[ev.length - 1].t;
   const { period, grid } = beatGrid(ev.map(e => e.t), end);
   let prevQ = -1;
@@ -284,11 +361,11 @@ export function toScore(raw, offset = 0, high = 0.75, lib = null) {
     if (q <= prevQ) q = prevQ + 0.25;
     prevQ = q;
     return { t: +e.t.toFixed(3), q, n: e.chord || [pos[i].slice()],
-      ...(e.chord ? { sustain: +e.sustain.toFixed(3) } : {}) };
+      ...(e.chord ? { sustain: +e.sustain.toFixed(3) } : {}), ...(vision ? { conf: conf(e, pos[i]) } : {}) };
   });
   notes.forEach((n, i) => {
     n.d = i + 1 < notes.length ? Math.max(1, Math.min(16, Math.round((notes[i + 1].q - n.q) * 4))) : 4;
     n.sec = 'Part ' + (Math.floor(n.q / 16) + 1);
   });
-  return { bpm: Math.round(600 / period) / 10, grid, notes };
+  return { bpm: Math.round(600 / period) / 10, grid, notes, ...(vision ? { source: 'audio+video' } : {}) };
 }

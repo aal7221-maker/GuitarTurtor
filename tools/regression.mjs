@@ -12,9 +12,10 @@ import { prepareTimeline } from '../js/timeline.js';
 import { analyzeHarmony } from '../js/harmony.js';
 import { createHarness } from './fixtures/create-harness.mjs';
 import { loadSongAudio, saveSongAudio, deleteSongAudio, shiftScore } from '../js/song-audio.js';
-import { assignChord, toScore, reconcileChords } from '../js/songmaker.js';
+import { assignChord, toScore, reconcileChords, findTrim } from '../js/songmaker.js';
 import { playedChordName, cleanChordSegments } from '../js/chord-agreement.js';
 import { describeNotes } from '../js/theory.js';
+import { buildMixedTimeline } from '../js/songchords.js';
 import { detectAudioChords } from '../js/audio-chords.js';
 import { chordSource, ChordPanel } from '../js/chordpanel.js';
 import { CHORDS, tone, joinAudio, audioFixtures, chordAccuracy } from './fixtures/audio.mjs';
@@ -24,6 +25,7 @@ import { playbackHarness } from './fixtures/playback-harness.mjs';
 import { fakeIndexedDB } from './fixtures/indexeddb.mjs';
 import { toScore as beforePhantoms } from './fixtures/songmaker-before-phantoms.mjs';
 import { ksNotes, residual, phantomFixtures } from './fixtures/phantom-notes.mjs';
+import { CaptureMachine, fitRect, videoAspect, clockText } from '../js/capture.js';
 
 const prepare = (score, mode = 'pick') => prepareTimeline(solveFingering(normalizeScore(score)), mode);
 const melody = () => ({ bpm: 120, notes: Array.from({ length: 8 }, (_, i) => ({ t: 2 + i / 4, n: [[0, [8, 12, 15, 12][i % 4]]] })) });
@@ -64,7 +66,7 @@ test('3D loads the exact stored Blob before other sources and is ready for Play'
   const blob = new Blob(['exact take']), h = playbackHarness({ test: song }, async () => blob);
   await h.ctx.loadSong('test');
   assert.equal(h.created[0], blob); assert.deepEqual(h.sources, []);
-  assert.equal(h.ctx.events[0].t, .2); assert.equal(h.panel[0].chords[0].t0, 0);
+  assert.equal(h.ctx.events[0].t, .2); assert.equal(h.ctx.curScore.chords[0].t0, 0);
   assert.equal(h.ui.play.textContent, 'Play'); assert.equal(h.audio.currentTime, 0);
   assert.equal(h.ui.scrub.max, 1);
   assert.equal(h.media.length, 0);
@@ -496,5 +498,215 @@ test('forward/backward seeks and rate changes keep both rigs finite', async () =
         finitePose(left); finitePose(right);
       }
     }
+  }
+});
+
+// ---------- one timeline per song: strummed bars + single notes (js/songchords.js buildMixedTimeline) ----------
+const mixedFixture = JSON.parse(fs.readFileSync(new URL('./fixtures/mixed-song.json', import.meta.url)));
+const strumPats = JSON.parse(fs.readFileSync(new URL('../chords/strum_patterns.json', import.meta.url)));
+const buildMixed = (fx = mixedFixture) => {
+  const ev = prepare(fx.score, fx.mode);
+  return { tab: ev, mix: buildMixedTimeline({ score: fx.score, events: ev, mode: fx.mode, track: { chords: fx.score.chords, strum: fx.score.strum }, lib: library, pats: strumPats }) };
+};
+
+test('mixed song: bars split into strum / notes / tab chords, chords only where they sound', () => {
+  const { tab, mix } = buildMixed();
+  assert.equal(mix.mixed, true);
+  assert.deepEqual(mix.bars.map(b => b.kind), ['strum', 'strum', 'notes', 'notes', 'tabchord', 'tabchord']);
+  assert.deepEqual(mix.spans.map(s => [s.symbol, s.source]), [['G', 'chords'], ['D', 'chords'], ['G', 'tab'], ['D', 'tab']]);
+  const ev = mix.events, [, , n0, n1, t0] = mix.bars;
+  // note bars: the tab's own events, plucked by the pick, never strummed and never labelled as a chord
+  const notes = ev.filter(e => e.t >= n0.t0 - 0.01 && e.t < n1.t1 - 0.01);
+  assert.equal(notes.length, 16);
+  assert.ok(notes.every(e => !e.strummed && !e.symbol && e.notes.length === 1));
+  assert.equal(ev.plucks.pick.length, 16);
+  assert.ok(ev.plucks.pick.every(p => !p.ev.strummed));
+  // tab chords keep the tab's exact voicing (G = 3 2 0 0 3 3, not the library's 3 2 0 0 0 3) for hand, strokes and diagram
+  const g = mix.spans[2], tabG = tab.find(e => e.t >= t0.t0 - 0.01);
+  assert.deepEqual(g.notes.map(n => [n.s, n.f]).sort(), tabG.notes.map(n => [n.s, n.f]).sort());
+  for (const st of mix.strokes.filter(s => s.fromTab && s.t < t0.t1 - 0.03)) {
+    assert.deepEqual(st.strings.map((sl, k) => [5 - sl, st.frets[k]]).sort(), tabG.notes.map(n => [n.s, n.f]).sort());
+  }
+  // strum directions follow the 8th grid (D on beats, U on "and"): D - D U - U D U
+  assert.equal(mix.strokes.filter(s => s.fromTab && s.t < t0.t1 - 0.03).map(s => s.dir).join(''), 'DDUUDU');
+  // the strum path is only active in strummed bars; the pick plays the tab in between
+  assert.ok(ev.strum.at(1.0) && ev.strum.at(11.0));
+  assert.equal(ev.strum.at(6.0), null);
+  // lead times stay ordered for timeline.sample()'s binary search
+  for (let i = 1; i < ev.length; i++) {
+    assert.ok(ev[i].t - ev[i].lead >= ev[i - 1].t - ev[i - 1].lead - 1e-9, 'lead order at ' + i);
+    assert.ok(ev[i].t - ev[i].leadH >= ev[i - 1].t - ev[i - 1].leadH - 1e-9, 'leadH order at ' + i);
+  }
+  // the synth plays exactly the note bars as notes and every strummed bar as strokes
+  assert.equal(mix.noteOnly.length, 16);
+  assert.equal(mix.strokes.length, 24);
+});
+
+test('songs without strummed bars keep their tab events unchanged', async () => {
+  for (const id of ['choo-lo', 'rabba', 'falling-in-love-with-you']) {
+    const score = JSON.parse(fs.readFileSync(new URL(`../data/score-${id}.json`, import.meta.url)));
+    const track = JSON.parse(fs.readFileSync(new URL(`../data/chords-${id}.json`, import.meta.url)));
+    const ev = prepare(score, id === 'rabba' ? 'pick' : 'fingers');
+    const r = buildMixedTimeline({ score, events: ev, mode: 'fingers', track: { chords: track.chords, strum: track.strum || null }, lib: library, pats: strumPats });
+    assert.equal(r.mixed, false, id);
+    assert.ok(r.bars.every(b => b.kind === 'notes'), id);
+  }
+});
+
+test('mixed song: both hands stay finite and the picking hand moves smoothly into and out of strummed bars', async () => {
+  const left = await hand('left'), right = await hand('right');
+  for (const mode of ['pick', 'fingers']) {
+    const { mix } = buildMixed({ ...mixedFixture, mode });
+    const perf = new Performer(left, right);
+    perf.setEvents(mix.events);
+    const fr = [];
+    for (let T = 0, first = true; T < mix.end; T += 1 / 60, first = false) {
+      perf.update(T, 1 / 60, first);
+      finitePose(left); finitePose(right);
+      fr.push({ T, p: (mode === 'pick' ? perf.pick.tip : right.tipG('index')).clone(), contact: !!(perf.strumState && perf.strumState.contact) });
+    }
+    // where strumming and picking meet the hand travels over several frames, it never teleports: no single frame covers
+    // most of the distance moved in the 0.2 s around it
+    const edges = mix.events.strum.windows.flat();
+    let worst = 0;
+    for (let i = 7; i < fr.length - 7; i++) {
+      if (fr[i].contact || !edges.some(w => Math.abs(fr[i].T - w) < 0.12)) continue;
+      const d = fr[i].p.distanceTo(fr[i - 1].p);
+      let path = 0; for (let j = i - 6; j <= i + 6; j++) path += fr[j].p.distanceTo(fr[j - 1].p);
+      if (d > 0.004) worst = Math.max(worst, d / path);
+    }
+    assert.ok(worst < 0.5, `${mode}: one frame covers ${(100 * worst).toFixed(0)} % of the move at a strum window edge`);
+  }
+});
+
+test('index.html keeps only the learning controls; the rest sits in the More menu', () => {
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  for (const gone of ['id="songview"', 'id="sv-notes"', 'id="sv-chords"', 'id="view-front"', 'id="view-back"', 'id="follow"', 'id="info"'])
+    assert.ok(!html.includes(gone), gone + ' should be removed');
+  for (const kept of ['id="song"', 'id="play"', 'id="scrub"', 'id="rate"', 'id="loop"', 'id="learn-tools"', 'id="more"'])
+    assert.ok(html.includes(kept), kept);
+  const menu = html.slice(html.indexOf('id="more-menu"'), html.indexOf('<div class="bar" id="bottom">'));
+  for (const inMore of ['id="mode-chords"', 'id="loadfile"', 'class="legend"', 'id="status"']) assert.ok(menu.includes(inMore), inMore + ' in More');
+});
+
+// ---------- create: auto-trim leading / trailing silence ----------
+/** synthetic take: `sil` s of faint noise, plucked tones (G B D G, 0.5 s each) for `tones` s, then `after` s of noise */
+function take(sil, tones, after, noise = 2e-4) {
+  const sr = 22050, y = new Float32Array(Math.round((sil + tones + after) * sr));
+  let seed = 1; const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 - 0.5; };
+  for (let i = 0; i < y.length; i++) y[i] = noise * rnd();
+  const f = [196, 247, 294, 392];
+  for (let k = 0; k < tones / 0.5; k++) {
+    const i0 = Math.round((sil + k * 0.5) * sr);
+    for (let i = 0; i < 0.5 * sr; i++) { const t = i / sr; let v = 0; for (let h = 1; h <= 4; h++) v += Math.sin(2 * Math.PI * f[k % 4] * h * t) / h; y[i0 + i] += 0.3 * Math.exp(-3 * t) * v; }
+  }
+  return y;
+}
+
+test('trim finds the first sustained musical onset after 3 s of silence, and the silent end', () => {
+  const t = findTrim(take(3, 4, 2));
+  assert.equal(t.trimmed, true);
+  assert.ok(t.start >= 2.7 && t.start <= 2.85, 'start ' + t.start);   // onset 3.0 s minus ~0.2 s
+  assert.ok(t.end >= 7.0 && t.end <= 7.7, 'end ' + t.end);            // last note ends at 7.0 s, plus its tail
+  for (const [y, what] of [[take(0, 4, 0), 'no silence'], [take(0.3, 4, 0.3), 'short silence'], [new Float32Array(22050 * 3), 'digital silence'], [take(5, 0, 0, 0.05), 'noise only']])
+    assert.deepEqual([findTrim(y).trimmed, findTrim(y).start], [false, 0], what);
+});
+
+test('create trims a take with leading silence, keeps note times on the video clock, and Undo restores the full take', async () => {
+  const h = createHarness({ audio: take(3, 4, 2), notes: [{ t: .2, e: .7, p: 64, a: 1 }] });
+  h.get('autoOpen').checked = false;
+  h.get('file').onchange({ target: { files: [new File(['upload'], 'take.wav')] } });
+  h.get('offset').value = '10';                                     // audio starts at video time 10 s
+  await h.get('go').onclick();
+  const song = [...h.songs.values()][0], cut = +h.get('offset').value - 10;
+  assert.ok(cut >= 2.7 && cut <= 2.85, 'cut ' + cut);
+  assert.equal(h.get('trimMsg').hidden, false);
+  assert.match(h.get('trimTxt').textContent, /^Trimmed 2\.\d s of silence at the start and \d\.\d s at the end\.$/);
+  // the note 0.2 s into the trimmed audio sits at video time 10 + cut + 0.2; the stored take is the kept part
+  assert.equal(song.audioOffset, +(10 + cut).toFixed(2));
+  assert.equal(song.score.notes[0].t, +(10 + cut + .2).toFixed(3));
+  assert.equal(shiftScore(song.score, -song.audioOffset).notes[0].t, .2);
+  assert.match(await h.blobs.get(song.id).text(), /^trimmed 2\.\d\d-7\.\d\d$/);
+  assert.ok(song.audioDuration < 5);
+  // Undo: back to the whole take, offset restored, the tab rewritten from it
+  await h.get('trimUndo').onclick();
+  assert.equal(h.get('trimMsg').hidden, true);
+  assert.equal(h.get('offset').value, '10.00');
+  assert.equal(h.songs.size, 1);
+  const again = [...h.songs.values()][0];
+  assert.notEqual(again.id, song.id);
+  assert.equal(again.audioOffset, 10);
+  assert.equal(await h.blobs.get(again.id).text(), 'upload');
+  assert.equal(h.blobs.has(song.id), false);
+});
+
+// ---------- create: sound + fretting-hand video fusion (js/handvision.js) ----------
+test('hand video picks the string/fret nearest the fingertips; pitch is kept; no hand = plain Viterbi', async () => {
+  const { visionCosts, findH, applyH, homographyFromCalibration, fretX, stringY } = await import('../js/handvision.js');
+  // D#4 (63) three times: audio-only Viterbi plays it low (B string 4); fingertips at fret ~8 on the G string ask for (2, 8)
+  const raw = [0, 1, 2].map(i => ({ t: .5 + i, e: .9 + i, p: 63, a: 1 }));
+  const plain = toScore(raw);
+  assert.ok(!plain.source && plain.notes.every(n => n.conf === undefined));
+  const track = { frames: [] };
+  for (let t = 0; t < 3; t += 1 / 12) track.frames.push({ t, tips: t < 2 ? [[2.1, 7.6], [1.2, 9.4]] : null });
+  const fused = toScore(raw, 0, .75, null, { vision: visionCosts(track) });
+  assert.equal(fused.source, 'audio+video');
+  assert.deepEqual(plain.notes.map(n => n.n), [[[1, 4]], [[1, 4]], [[1, 4]]]);
+  assert.deepEqual(fused.notes.slice(0, 2).map(n => n.n), [[[2, 8]], [[2, 8]]]);
+  assert.ok(fused.notes[0].conf > .5 && fused.notes.every(n => n.conf >= 0 && n.conf <= 1));
+  assert.ok(fused.notes.every((n, i) => openMidi[n.n[0][0]] + n.n[0][1] === 63), 'pitch unchanged');
+  // geometry: calibration homography maps the clicked corners back
+  const pts = [[100, 50], [110, 150], [400, 170], [390, 60]], H = homographyFromCalibration(pts, [0, 12]);
+  const [x, y] = applyH(H, fretX(12), stringY(5, fretX(12)));
+  assert.ok(Math.hypot(x - 400, y - 170) < 1e-6);
+  const src = [[0, 0], [1, 0], [1, 1], [0, 1], [.5, .5], [.2, .7]], dst = src.map(([a, b]) => applyH(H, a, b));
+  dst.push([999, 999]); src.push([.3, .3]);
+  assert.equal(findH(src, dst, 1).inl.filter(Boolean).length, 6);
+});
+
+test('capture state machine: one stop wins, ended only after playing, end time, fit rect', () => {
+  const m = new CaptureMachine({ start: 5, end: 20 });
+  assert.equal(m.player(0), false); assert.equal(m.tick(30), false);          // idle: nothing stops
+  assert.ok(m.arm()); assert.ok(m.begin(1000));
+  assert.equal(m.player(0), false, 'stale ended before playing');
+  assert.equal(m.tick(19.9), false); assert.equal(m.elapsed(3500), 2.5);
+  assert.equal(m.tick(20), true); assert.equal(m.reason, 'end');
+  assert.equal(m.stop('esc'), false); assert.equal(m.reason, 'end');
+  const e = new CaptureMachine({ end: NaN }); e.arm(); e.begin(0);
+  assert.equal(e.end, null); assert.equal(e.tick(1e6), false);
+  assert.equal(e.player(1), false); assert.equal(e.player(0), true); assert.equal(e.reason, 'ended');
+  assert.equal(new CaptureMachine({ start: 10, end: 4 }).end, null);
+  const a = new CaptureMachine(); a.arm(); assert.ok(a.stop('shared')); assert.equal(a.begin(0), false);
+  assert.deepEqual(fitRect(1600, 900, 16 / 9), { left: 0, top: 0, width: 1600, height: 900 });
+  const p = fitRect(1600, 900, 9 / 16); assert.equal(p.height, 900); assert.equal(p.left, (1600 - 506.25) / 2);
+  const t = fitRect(1000, 900, 16 / 9); assert.equal(t.width, 1000); assert.equal(t.top, (900 - 562.5) / 2);
+  assert.equal(videoAspect('https://youtube.com/shorts/abcdefghijk'), 9 / 16); assert.equal(videoAspect('https://youtu.be/abcdefghijk'), 16 / 9);
+  assert.equal(clockText(75.9), '1:15');
+});
+
+test('tab capture fills the window, stops itself (ended / Esc / stop time) and goes straight on to the tab', async () => {
+  for (const how of ['ended', 'esc', 'end', 'shared']) {
+    const h = createHarness({ videoTime: 12 });
+    h.get('url').value = 'https://www.youtube.com/shorts/abcdefghijk'; await h.get('loadVid').onclick();
+    h.get('capFrom').value = '3'; h.get('capTo').value = how === 'end' ? '10' : '';
+    await h.get('cap').onclick();
+    const html = h.document.documentElement, box = h.yt.panel.querySelector('.ytbody');
+    assert.ok(html.classList.contains('yt-theatre'), how); assert.ok(h.yt.panel.classList.contains('theatre'));
+    assert.equal(box.style.height, '900px'); assert.equal(box.style.width, '506.25px');   // 9:16 pillarbox in 1600x900
+    assert.equal(h.document.body.children.at(-1).className, 'capbar');
+    assert.deepEqual(h.yt.plays, [[3, 1]]);
+    if (how === 'ended') { h.yt.onState(1); h.yt.onState(0); }
+    else if (how === 'esc') h.key('Escape');
+    else if (how === 'end') await new Promise(r => setTimeout(r, 450));             // 12 s >= stop at 10 s
+    else h.tracks[1].onended();
+    assert.equal(h.recorder.state, 'inactive', how);
+    await h.recorder.done;
+    assert.ok(!html.classList.contains('yt-theatre')); assert.ok(!h.yt.panel.classList.contains('theatre'));
+    assert.equal(box.style.height, ''); assert.ok(h.document.body.children.at(-1).removed);
+    assert.equal(h.calls, 1, how);
+    const song = [...h.songs.values()][0];
+    assert.equal(song.audioOffset, 3);                                             // audio t = 0 is video t = 3
+    assert.equal(h.navigation[0], 'index.html#' + song.id);
+    h.key('Escape'); h.yt.onState(0); assert.equal(h.calls, 1);                    // late events after the take are harmless
   }
 });

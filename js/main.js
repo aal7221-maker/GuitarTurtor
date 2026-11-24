@@ -1,26 +1,25 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { buildGuitar, layoutString, contactX, stringY, stringZ, STRING_NAMES } from './guitar.js';
+import { buildGuitar, layoutString, contactX, stringY, stringZ } from './guitar.js';
 import { normalizeScore, solveFingering } from './fingering.js';
 import { prepareTimeline } from './timeline.js';
 import { HandRig } from './hand.js';
 import { Performer } from './performer.js';
 import { HAND_LEFT, HAND_RIGHT } from './hand-assets.js';
-import { renderSong } from './synth.js';
-import { initLearn } from './learn.js';   // tab strip, lesson markers, hands toggle, lesson cam (js/learn.js)
-import { ChordPanel } from './chordpanel.js';
+import { renderSong, renderMixed } from './synth.js';
+import { initChords } from './chords-mode.js';   // Chord practice (More menu): progression, strum pattern, diagrams (js/chords-mode.js)
+import { initLearn } from './learn.js';   // tab strip, lesson markers, the current note / chord display, hands toggle, lesson cam (js/learn.js)
 import { loadSongAudio, shiftScore } from './song-audio.js';
+import { buildMixedTimeline } from './songchords.js';   // one timeline per song: strummed bars + single-note bars
 
 let SONGS = {};   // filled from data/songs.json (written by the tab-viewer build)
 const FINGER_COLORS = [0x4cc9f0, 0x80ed99, 0xffd166, 0xef476f];
-const FINGER_NAMES = ['index', 'middle', 'ring', 'pinky'];
-const PLUCK_LABEL = { thumb: 'p', index: 'i', middle: 'm', ring: 'a' };
 
 const $ = id => document.getElementById(id);
 const ui = {
   status: $('status'), play: $('play'), scrub: $('scrub'), time: $('time'), song: $('song'),
-  rate: $('rate'), follow: $('follow'), info: $('info'), loading: $('loading'),
+  rate: $('rate'), loop: $('loop'), loading: $('loading'),
 };
 
 // ---------- scene ----------
@@ -78,17 +77,27 @@ const pickMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(pickShape, { depth: 0.
   new THREE.MeshStandardMaterial({ color: 0xff6a3d, roughness: 0.4 }));
 pickMesh.visible = false;
 guitar.add(pickMesh);
-const learn = initLearn({ guitar, camera, controls, now: () => now(), seek: t => seek(t), hands: () => [left, right], pickMesh, markers, resize: () => resize() });
-const chordPanel = new ChordPanel();   // implied chord + diagram (js/harmony.js, chords/chord_shapes.json)
+// the camera follows the fretting hand unless the Lesson cam (fixed framing) is on
+let followOn = true, followTarget = null;
+const learn = initLearn({ guitar, camera, controls, now: () => now(), seek: t => seek(t), hands: () => [left, right], pickMesh, markers, resize: () => resize(),
+  setFollow: on => { followOn = on; followTarget = null; } });
+
+const chords = initChords({
+  now: () => now(), seek: t => seek(t), isPlaying: () => playing, setPlaying: p => setPlaying(p),
+  load: cs => loadChordSong(cs), restore: () => loadSong(songKey), resize: () => resize(),
+  leaveSong: () => {},
+});
 
 // ---------- state ----------
-let events = [], duration = 1, songKey = 'choo-lo';
+let events = [], duration = 1, songKey = 'choo-lo', curScore = null;
 let lastT = null, internalT = 0, playing = false, audioOK = true;
 let left = null, right = null, perf = null;
 const audio = new Audio();
 audio.preload = 'auto';
 audio.addEventListener('error', () => { if (audio.src) { audioOK = false; setStatus('Audio failed to load: animating on internal clock'); } });
 audio.addEventListener('loadedmetadata', () => {
+  // the previous song's file can report its length while the next song is loading: ignore it then
+  if (!sourceReady) return;
   // MediaRecorder WebM may report Infinity; keep the decoded duration in that case.
   if (Number.isFinite(audio.duration)) duration = Math.max(duration, audio.duration);
   ui.scrub.max = duration;
@@ -106,7 +115,7 @@ const yt = window.YTSync ? new window.YTSync({
   },
 }) : null;
 
-function setStatus(s) { ui.status.textContent = s; poke(); }
+function setStatus(s) { if (ui.status) ui.status.textContent = s; poke(); }
 
 // ---------- render on demand ----------
 // While paused and untouched nothing on screen changes, so the scene and the tab strip are only redrawn
@@ -120,6 +129,9 @@ document.addEventListener('visibilitychange', () => poke());
 { const m = THREE.DefaultLoadingManager, prev = m.onLoad; m.onLoad = (...a) => { poke(); if (prev) prev(...a); }; m.onProgress = () => poke(); }
 const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
 let sourceReady = false, pendingPlay = false, songLoad = 0;
+// what is playing: 'recording' | 'file' | 'yt' | 'synth' (from the tab: notes, plus the strummed bars of a mixed song) |
+// 'chordsynth' (Chord practice) | null
+let audioSource = null, noteEvents = [];
 function setUi(p) {
   playing = p;
   poke();
@@ -135,7 +147,29 @@ function setPlaying(p) {
 function now() { return ytActive ? yt.time() : audioOK ? audio.currentTime : internalT; }
 function seek(t) { if (ytActive) yt.seek(t); else if (audioOK) audio.currentTime = t; internalT = t; lastT = null; poke(); }
 
+// Chord practice (More menu): events/strokes/audio come from js/chordsong.js + synth.renderStrokes (via js/chords-mode.js)
+let chordLoad = 0;
+async function loadChordSong(cs) {
+  const my = ++chordLoad, wasPlaying = playing;
+  setPlaying(false);
+  ytActive = false; if (yt) { yt.pause(); yt.hide(); }
+  sourceReady = false; pendingPlay = false; setUi(false);
+  events = cs.events; duration = cs.total;
+  if (perf) perf.setEvents(events);
+  learn.setEvents(events);
+  ui.scrub.max = duration;
+  setStatus('Generating guitar sound for ' + cs.label + '…');
+  let src = null;
+  try { src = URL.createObjectURL(await cs.renderAudio()); } catch (e) { console.error(e); }
+  if (my !== chordLoad) return;
+  setAudio(src, 'chordsynth', cs.label);
+  duration = cs.total; ui.scrub.max = duration;
+  sourceIsReady();
+  if (wasPlaying) setPlaying(true);
+}
+
 async function loadSong(key) {
+  if (typeof chords !== 'undefined') { chordLoad++; chords.deactivate(); }   // the playback test harness loads main.js without chord mode
   const load = ++songLoad;
   const song = SONGS[key];
   songKey = key;
@@ -148,15 +182,25 @@ async function loadSong(key) {
   const recording = song.user ? await loadSongAudio(key) : null;
   if (load !== songLoad) return;
   if (recording) score = shiftScore(score, -(song.audioOffset || 0));
+  curScore = score;
   events = prepareTimeline(solveFingering(normalizeScore(score)), song.mode);
+  noteEvents = events;
+  // ONE timeline: strummed bars (chord song / the tab's stacked chords) + single-note bars (the tab); songs without strummed
+  // bars keep the tab events unchanged (not in the playback test harness)
+  let mix = null;
+  if (typeof buildMix !== 'undefined') {
+    mix = await buildMix(key, song, score, noteEvents);
+    if (load !== songLoad) return;
+    if (mix && mix.mixed) events = mix.events;
+  }
   if (perf) perf.setEvents(events);
   learn.setEvents(events);
-  try { chordPanel.setScore(score, events); } catch (e) { console.warn('harmony', e); chordPanel.setSegments([]); }
-  duration = events.length ? events[events.length - 1].t + 2 : 1;
+  duration = noteEvents.length ? noteEvents[noteEvents.length - 1].t + 2 : 1;
+  if (mix && mix.mixed) duration = Math.max(duration, mix.end + 1.5);
   if (recording && Number.isFinite(song.audioDuration) && song.audioDuration > 0) duration = song.audioDuration;
   ui.scrub.max = duration;
-  const shifts = events.reduce((a, e, i) => a + (i && e.pos !== events[i - 1].pos ? 1 : 0), 0);
-  const summary = `${events.length} notes · ${shifts} position shifts · ${Math.round(score.bpm)} bpm · ${song.mode === 'pick' ? 'pick' : 'p-i-m-a'}`;
+  const nStrum = mix && mix.mixed ? mix.bars.filter(b => b.kind !== 'notes').length : 0;
+  const summary = `${noteEvents.length} notes${nStrum ? ` · ${nStrum} strummed bar${nStrum > 1 ? 's' : ''}` : ''} · ${Math.round(score.bpm)} bpm · ${song.mode === 'pick' ? 'pick' : 'p-i-m-a'}`;
   // Saved audio first, then hosted audio, YouTube, and finally the guitar synth.
   let src = recording ? URL.createObjectURL(recording) : null, source = recording ? 'file' : 'recording';
   ytActive = false;
@@ -167,7 +211,7 @@ async function loadSong(key) {
     try {
       await yt.load(song.video, song.label);
       if (load !== songLoad) return;
-      audio.pause(); audioOK = false; ytActive = true;
+      audio.pause(); audioOK = false; ytActive = true; audioSource = 'yt';
       yt.setRate(parseFloat(ui.rate.value)); seek(0);
       setStatus(`${summary} · sound: original video (YouTube)`);
       sourceIsReady();
@@ -179,7 +223,9 @@ async function loadSong(key) {
   if (!src) {
     setStatus('Generating guitar sound from the tab…');
     try {
-      const blob = await renderSong(normalizeScore(score), song.mode, duration + 1.5);
+      // mixed song: the single notes as plucked / picked, the strummed bars as strokes (exactly what the hands play)
+      const blob = mix && mix.mixed ? await renderMixed(mix.noteOnly, mix.strokes, song.mode, duration + 1.5)
+        : await renderSong(normalizeScore(score), song.mode, duration + 1.5);
       if (load !== songLoad) return;
       src = URL.createObjectURL(blob); source = 'synth';
     } catch (e) { console.error(e); }
@@ -199,10 +245,10 @@ let lastSummary = '';
 function setAudio(src, source, summary = lastSummary) {
   lastSummary = summary;
   if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
-  audioOK = !!src;
+  audioOK = !!src; audioSource = src ? source : null;
   if (src) { audio.src = src; audio.playbackRate = parseFloat(ui.rate.value); }
   seek(0);
-  const label = { recording: 'original recording', synth: 'synth guitar from the tab', file: 'your recording' }[source] || 'no audio';
+  const label = { recording: 'original recording', synth: 'synth guitar from the tab', chordsynth: 'synth guitar strumming the chords', file: 'your recording' }[source] || 'no audio';
   setStatus(`${summary} · sound: ${src ? label : 'no audio'}`);
 }
 
@@ -224,22 +270,64 @@ Promise.all([loadHand('left'), loadHand('right')]).then(([l, r]) => {
   requestAnimationFrame(() => idle(() => { left.refine(); poke(); idle(() => { right.refine(); poke(); }); }));
 }).catch(err => { ui.loading.textContent = 'Hand model failed to load'; console.error(err); });
 
+// ---------- one timeline per song: strummed bars + single notes ----------
+// js/songchords.js buildMixedTimeline cuts the song into bars: bars where the tab stacks chords are strummed from the tab
+// (exact voicing), bars with the recording's strum (score.strum / data/chords-<id>.json) or a chord flagged {strum: true}
+// are strummed with the chord song (shapes from chords/chord_shapes.json), the rest are the tab's notes.
+
+/** the song's chord track on the page clock: score.chords/strum, else data/chords-<id>.json (shifted by its offset) */
+async function songChordTrack(key, song, score) {
+  if (Array.isArray(score.chords) && score.chords.length) return { chords: score.chords, strum: score.strum || null };
+  if (song.user || song.fixture) return null;
+  try {
+    const r = await fetch(`data/chords-${key}.json`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!Array.isArray(d.chords) || !d.chords.length) return null;
+    const strum = d.strum && d.strum.pattern && Array.isArray(d.strum.strokes) ? d.strum : null;
+    const s = shiftScore({ notes: [], chords: d.chords, ...(strum ? { strum } : {}) }, d.offset || 0);
+    return { chords: s.chords, strum: s.strum || null };
+  } catch (e) { return null; }
+}
+async function buildMix(key, song, score, tabEvents) {
+  try {
+    const track = await songChordTrack(key, song, score);
+    const needShapes = track && (track.strum || track.chords.some(c => c.strum));
+    const data = needShapes ? await chords.ensureData() : null;
+    return buildMixedTimeline({ score, events: tabEvents, mode: song.mode === 'pick' ? 'pick' : 'fingers', track, lib: data && data.lib, pats: data && data.pats });
+  } catch (e) { console.warn('mixed timeline', e); return null; }
+}
+
+// ---------- A-B loop ----------
+// Loop: 1st press marks A (now), 2nd press marks B and loops A-B, 3rd press clears.
+const loopAB = { a: null, b: null };
+function markLoop() {
+  const T = now();
+  if (loopAB.a === null) loopAB.a = T;
+  else if (loopAB.b === null && T > loopAB.a + 0.3) { loopAB.b = T; seek(loopAB.a); }
+  else { loopAB.a = loopAB.b = null; }
+  const on = loopAB.b !== null;
+  ui.loop.textContent = on ? `Loop ${fmt(loopAB.a)}–${fmt(loopAB.b)}` : loopAB.a !== null ? `Loop from ${fmt(loopAB.a)}… set end` : 'Loop';
+  ui.loop.setAttribute('aria-pressed', String(on || loopAB.a !== null));
+}
+function clearLoop() { loopAB.a = loopAB.b = null; if (ui.loop) { ui.loop.textContent = 'Loop'; ui.loop.setAttribute('aria-pressed', 'false'); } }
+
 // ---------- per-frame ----------
-let followTarget = null;
 const camOffset = new THREE.Vector3(0.06, 0.1, 0.42);
 
 function update(dt) {
   if (!audioOK && playing) internalT += dt * parseFloat(ui.rate.value);
-  const T = now();
+  let T = now();
+  if (loopAB.b !== null && playing && (T >= loopAB.b || T < loopAB.a - 0.5)) { seek(loopAB.a); T = loopAB.a; }
   const jumped = lastT === null || Math.abs(T - lastT) > 0.25;
   lastT = T;
   if (!perf) return;
   const { st, pressed, anchor } = perf.update(T, dt, jumped);
-  chordPanel.update(T);
 
   // strings: pressed geometry from the actual fingertips, glow + vibration while sounding
   const glow = [0, 0, 0, 0, 0, 0];
-  for (const e of st.sounding) for (const n of e.notes) glow[n.s] = Math.max(glow[n.s], Math.exp(-(T - e.t) / 0.45));
+  if (events.strum) events.strum.glow(T).forEach((v, s) => { glow[s] = v; });   // strummed: each string lights when the hand reaches it
+  if (!events.strum || events.mixed) for (const e of st.sounding) if (!e.strummed) for (const n of e.notes) glow[n.s] = Math.max(glow[n.s], Math.exp(-(T - e.t) / 0.45));
   strings.forEach((str, s) => {
     str.mat.emissiveIntensity = 2.0 * glow[s];
     layoutString(str, pressed[s], glow[s] * 0.0005, T);
@@ -270,16 +358,8 @@ function update(dt) {
   for (const e of st.upcoming) for (const n of e.notes) place(n, 0.28 * (1 - (e.t - T) / 0.6) + 0.08, 0.75);
   for (; mi < markers.length; mi++) markers[mi].visible = false;
 
-  // HUD
-  const cur = st.now >= 0 ? events[st.now] : null;
-  if (cur) {
-    const desc = cur.notes.map(n => `${STRING_NAMES[n.s]}${n.f} ${n.finger ? FINGER_NAMES[n.finger - 1] : 'open'}${n.pluck ? ' (' + PLUCK_LABEL[n.pluck] + ')' : ''}`).join(' + ');
-    const tech = [cur.legato && cur.legato + ' in', cur.slide && 'slide', cur.bend && 'bend', cur.hb && 'hold bend', cur.rel && 'release', cur.vib && 'vibrato', cur.ham && 'hammer next', cur.pull && 'pull next'].filter(Boolean).join(', ');
-    setText(ui.info, `Pos ${cur.pos}  |  ${desc}${tech ? '  · ' + tech : ''}`);
-  } else setText(ui.info, 'Press Play');
-
   // camera follows the fretting hand (keeps the user's orbit offset)
-  if (ui.follow.checked) {
+  if (followOn) {
     const w = guitar.localToWorld(anchor.clone().setY(0).setZ(0));
     if (!followTarget) followTarget = controls.target.clone();
     const prev = followTarget.clone();
@@ -313,6 +393,7 @@ function frame(t) {
     if (!playing) wake--;
     update(dt);
     learn.update(now());
+    chords.update(now());
     controls.update();   // dispatches 'change' while damping, which pokes and keeps this going until it settles
     renderer.render(scene, camera);
   }
@@ -321,10 +402,11 @@ function frame(t) {
 controls.addEventListener('change', () => poke());
 
 // ---------- UI ----------
-ui.song.addEventListener('change', () => loadSong(ui.song.value));
+ui.song.addEventListener('change', () => { clearLoop(); loadSong(ui.song.value); });
 ui.play.addEventListener('click', () => setPlaying(!playing));
 ui.scrub.addEventListener('input', () => seek(parseFloat(ui.scrub.value)));
 ui.rate.addEventListener('change', () => { audio.playbackRate = parseFloat(ui.rate.value); if (ytActive) yt.setRate(parseFloat(ui.rate.value)); });
+if (ui.loop) ui.loop.addEventListener('click', () => { markLoop(); ui.loop.blur(); });
 $('loadfile').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0];
   if (!f) return;
@@ -332,25 +414,36 @@ $('loadfile').addEventListener('change', e => {
   if (ytActive) { yt.pause(); yt.hide(); ytActive = false; }
   setAudio(URL.createObjectURL(f), 'file');
   e.target.value = '';
+  closeMore();
 });
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); setPlaying(!playing); }
 });
-for (const v of ['front', 'player', 'close', 'pick', 'back']) $('view-' + v).addEventListener('click', () => setView(v));
+// "More" menu: links, Chord practice, Load recording, Hide controls, details
+const more = { btn: $('more'), menu: $('more-menu') };
+function closeMore() { if (more.menu) { more.menu.hidden = true; more.btn.setAttribute('aria-expanded', 'false'); } }
+if (more.btn) {
+  more.btn.addEventListener('click', e => { e.stopPropagation(); more.menu.hidden = !more.menu.hidden; more.btn.setAttribute('aria-expanded', String(!more.menu.hidden)); });
+  document.addEventListener('click', e => { if (!more.menu.hidden && !more.menu.contains(e.target)) closeMore(); });
+  for (const b of more.menu.querySelectorAll('button')) b.addEventListener('click', () => setTimeout(closeMore, 0));
+  window.addEventListener('keydown', e => { if (e.key === 'Escape') closeMore(); });
+}
 
+/** camera presets for scripted views (tests/e2e/record.mjs); the page itself only offers the Lesson cam */
 function setView(v) {
   const offs = { front: [0.06, 0.1, 0.42], player: [0.03, 0.36, 0.1], close: [0.03, -0.1, 0.22], back: [0.05, -0.05, -0.32] };
+  if (learn.lessonOn) learn.setLesson(false);
   if (v === 'pick') {
-    ui.follow.checked = false; followTarget = null;
+    followOn = false; followTarget = null;
     const tgt = guitar.localToWorld(new THREE.Vector3(0.55, 0, 0));
     controls.target.copy(tgt);
     camera.position.copy(tgt).add(new THREE.Vector3(0.02, -0.2, 0.24));
     return;
   }
-  ui.follow.checked = true;
+  followOn = true;
   const tgt = followTarget ? followTarget.clone() : guitar.localToWorld(new THREE.Vector3(contactX(6), 0, 0));
   controls.target.copy(tgt);
-  camera.position.copy(tgt).add(new THREE.Vector3(...offs[v]));
+  camera.position.copy(tgt).add(new THREE.Vector3(...(offs[v] || offs.front)));
 }
 
 resize();
@@ -366,13 +459,23 @@ camera.position.copy(start).add(camOffset);
     for (const x of list) ui.song.add(new Option(x.label, x.id));
     const want = location.hash.slice(1);
     await loadSong(SONGS[want] ? want : (SONGS['choo-lo'] ? 'choo-lo' : list[0].id));
+    if (want === 'chords') chords.activate();
   } catch (e) { setStatus('Failed to load the song list: ' + e.message); console.error(e); }
 })();
-window.addEventListener('hashchange', () => { const k = location.hash.slice(1); if (SONGS[k] && k !== songKey) loadSong(k); });
+window.addEventListener('hashchange', () => { const k = location.hash.slice(1); if (SONGS[k] && k !== songKey) { clearLoop(); loadSong(k); } else if (k === 'chords') chords.activate(); });
 requestAnimationFrame(frame);
+
+/** add a song at runtime (headless checks: tools/fixtures/mixed-song.json) and load it */
+async function addSong(s) {
+  SONGS[s.id] = { ...s, fixture: true };
+  if (![...ui.song.options].some(o => o.value === s.id)) ui.song.add(new Option(s.label, s.id));
+  clearLoop();
+  await loadSong(s.id);
+}
 
 // exposed for debugging / headless checks
 window.__g3d = {
   get events() { return events; }, get hand() { return left; }, get right() { return right; }, get perf() { return perf; },
-  get song() { return songKey; }, loadSong, setView, seek, setPlaying, camera, controls,
+  get song() { return songKey; }, get score() { return curScore; }, get sourceReady() { return sourceReady; }, get loop() { return { ...loopAB }; },
+  chords, learn, loadSong, addSong, setView, seek, setPlaying, now: () => now(), camera, controls,
 };

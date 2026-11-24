@@ -24,31 +24,38 @@
   #stage { position: fixed; inset: 0; }
   #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
   .bar { position: fixed; left: 0; right: 0; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 8px;
-    align-items: center; background: var(--panel); border-color: var(--border); backdrop-filter: blur(6px); }
+    align-items: center; background: var(--panel); border-color: var(--border); backdrop-filter: blur(6px); z-index: 4; }
   #top { top: 0; border-bottom: 1px solid var(--border); }
   #bottom { bottom: 0; border-top: 1px solid var(--border); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
   h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 650; letter-spacing: 0.01em; }
-  #status { color: var(--muted); font-size: 12px; }
-  #info { font-variant-numeric: tabular-nums; font-size: 13px; min-height: 1.4em; flex: 1 1 100%; }
   button, select { font: inherit; color: var(--text); background: var(--btn); border: 1px solid var(--border);
     border-radius: 8px; padding: 6px 12px; min-height: 36px; cursor: pointer; }
   button:hover, select:hover { background: var(--btn-hover); }
+  button[aria-pressed="true"] { border-color: var(--accent); }
+  #song { flex: 0 1 auto; min-width: 0; max-width: 100%; }
   #play { min-width: 76px; font-weight: 600; border-color: var(--accent); }
   #scrub { flex: 1 1 160px; accent-color: var(--accent); min-width: 120px; }
   #time { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 84px; text-align: right; }
-  label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
-  label.file { color: var(--text); background: var(--btn); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; min-height: 36px; cursor: pointer; }
-  label.file:hover { background: var(--btn-hover); }
-  .linkbtn { color: var(--text); background: var(--btn); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; min-height: 36px; display: inline-flex; align-items: center; text-decoration: none; }
-  .linkbtn:hover { background: var(--btn-hover); }
+  .more { position: relative; margin-left: auto; }
+  #more-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 230px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; gap: 6px;
+    padding: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; backdrop-filter: blur(8px); z-index: 6; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+  #more-menu[hidden] { display: none; }
+  #more-menu > a, #more-menu > button, #more-menu > label { text-align: left; }
+  .linkbtn, label.file { color: var(--text); background: var(--btn); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; min-height: 36px;
+    display: flex; align-items: center; text-decoration: none; cursor: pointer; }
+  .linkbtn:hover, label.file:hover { background: var(--btn-hover); }
   label.file:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .legend { display: inline-flex; gap: 10px; font-size: 12px; color: var(--muted); }
+  #status { color: var(--muted); font-size: 12px; line-height: 1.35; border-top: 1px solid var(--border); padding-top: 6px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
   #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--muted); }
   @media (max-width: 600px) {
-    h1 { flex: 1 1 100%; }
-    .legend { display: none; }
-    select { max-width: 100%; }
+    .bar { padding: 6px 10px; gap: 6px; }
+    h1 { display: none; }
+    #song { flex: 1 1 0; }
+    #scrub { flex: 1 1 100%; order: -1; }
+    #time { min-width: 0; }
+    button, select { padding: 6px 9px; }
   }
 </style>
 <script type="importmap">
@@ -57,24 +64,33 @@
     "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
     "./js/audio-chords.js": "./js/audio-chords.js?v=5e6a940615",
+    "./js/capture.js": "./js/capture.js?v=1f224da8b0",
     "./js/chord-agreement.js": "./js/chord-agreement.js?v=084f95c378",
     "./js/chordpanel.js": "./js/chordpanel.js?v=3c997c3bd6",
-    "./js/fingering.js": "./js/fingering.js?v=f432b99663",
+    "./js/chords-mode.js": "./js/chords-mode.js?v=be68a5ff86",
+    "./js/chordsong.js": "./js/chordsong.js?v=7f61fcf3ee",
+    "./js/fingering.js": "./js/fingering.js?v=b79f549da6",
     "./js/guitar.js": "./js/guitar.js?v=b2035c0bb4",
     "./js/hand-assets.js": "./js/hand-assets.js?v=734fe538b3",
     "./js/hand.js": "./js/hand.js?v=12a1c35fad",
+    "./js/handvision-worker.js": "./js/handvision-worker.js?v=0cbd14a4bd",
+    "./js/handvision.js": "./js/handvision.js?v=933483dd39",
     "./js/harmony.js": "./js/harmony.js?v=c706b78929",
-    "./js/learn.js": "./js/learn.js?v=2d95b0b374",
-    "./js/main.js": "./js/main.js?v=5c4e9e99f6",
+    "./js/learn.js": "./js/learn.js?v=067293e7d2",
+    "./js/main.js": "./js/main.js?v=13a6b59c17",
     "./js/markers.js": "./js/markers.js?v=3e79f88c05",
-    "./js/performer.js": "./js/performer.js?v=c481f18390",
-    "./js/song-audio.js": "./js/song-audio.js?v=bebed89fbe",
-    "./js/songmaker.js": "./js/songmaker.js?v=2d2a714b99",
+    "./js/performer.js": "./js/performer.js?v=6dcaff216f",
+    "./js/song-audio.js": "./js/song-audio.js?v=508927f5b5",
+    "./js/songchords.js": "./js/songchords.js?v=7e3114635e",
+    "./js/songmaker.js": "./js/songmaker.js?v=419cc97c1b",
+    "./js/strumdetect.js": "./js/strumdetect.js?v=1f8d2fa78a",
+    "./js/strumhand.js": "./js/strumhand.js?v=61582e91d4",
     "./js/subdivide.js": "./js/subdivide.js?v=94d1f9485e",
-    "./js/synth.js": "./js/synth.js?v=2f513eadac",
-    "./js/tabstrip.js": "./js/tabstrip.js?v=93e7f68297",
+    "./js/synth.js": "./js/synth.js?v=550a7a3721",
+    "./js/tabstrip.js": "./js/tabstrip.js?v=2b2709df34",
     "./js/theory.js": "./js/theory.js?v=c9eb754cfc",
-    "./js/timeline.js": "./js/timeline.js?v=0698ba9c14",
+    "./js/timeline.js": "./js/timeline.js?v=e49a97e17b",
+    "./chords/strum_model.js": "./chords/strum_model.js?v=6074a545a0",
     "./chords/chordnamer.js": "./chords/chordnamer.js?v=7a98aa55ed"
   }
 }
@@ -83,24 +99,28 @@
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js" crossorigin>
-<link rel="modulepreload" href="js/main.js?v=5c4e9e99f6">
+<link rel="modulepreload" href="js/main.js?v=13a6b59c17">
 <link rel="modulepreload" href="js/guitar.js?v=b2035c0bb4">
-<link rel="modulepreload" href="js/fingering.js?v=f432b99663">
-<link rel="modulepreload" href="js/timeline.js?v=0698ba9c14">
+<link rel="modulepreload" href="js/fingering.js?v=b79f549da6">
+<link rel="modulepreload" href="js/timeline.js?v=e49a97e17b">
 <link rel="modulepreload" href="js/hand.js?v=12a1c35fad">
 <link rel="modulepreload" href="js/subdivide.js?v=94d1f9485e">
-<link rel="modulepreload" href="js/performer.js?v=c481f18390">
+<link rel="modulepreload" href="js/performer.js?v=6dcaff216f">
+<link rel="modulepreload" href="js/strumhand.js?v=61582e91d4">
 <link rel="modulepreload" href="js/hand-assets.js?v=734fe538b3">
-<link rel="modulepreload" href="js/synth.js?v=2f513eadac">
-<link rel="modulepreload" href="js/learn.js?v=2d95b0b374">
-<link rel="modulepreload" href="js/tabstrip.js?v=93e7f68297">
+<link rel="modulepreload" href="js/synth.js?v=550a7a3721">
+<link rel="modulepreload" href="js/chords-mode.js?v=be68a5ff86">
+<link rel="modulepreload" href="js/chordsong.js?v=7f61fcf3ee">
+<link rel="modulepreload" href="chords/strum_model.js?v=6074a545a0">
+<link rel="modulepreload" href="js/learn.js?v=067293e7d2">
+<link rel="modulepreload" href="js/tabstrip.js?v=2b2709df34">
 <link rel="modulepreload" href="js/markers.js?v=3e79f88c05">
 <link rel="modulepreload" href="js/theory.js?v=c9eb754cfc">
-<link rel="modulepreload" href="js/chordpanel.js?v=3c997c3bd6">
-<link rel="modulepreload" href="js/harmony.js?v=c706b78929">
+<link rel="modulepreload" href="js/song-audio.js?v=508927f5b5">
+<link rel="modulepreload" href="js/songchords.js?v=7e3114635e">
+<link rel="modulepreload" href="js/strumdetect.js?v=1f8d2fa78a">
 <link rel="modulepreload" href="js/chord-agreement.js?v=084f95c378">
 <link rel="modulepreload" href="chords/chordnamer.js?v=7a98aa55ed">
-<link rel="modulepreload" href="js/song-audio.js?v=bebed89fbe">
 </head>
 <body>
 <div id="stage"></div>
@@ -108,25 +128,31 @@
 <div class="bar" id="top">
   <h1>Guitar Hand 3D</h1>
   <select id="song" aria-label="Song"></select>
-  <a id="tabslink" class="linkbtn" href="tabs.html">Tab view</a>
-  <a class="linkbtn" href="create.html">+ Add a song</a>
-  <span id="status"></span>
-  <span class="legend"><span><i style="background:#4cc9f0"></i>index</span><span><i style="background:#80ed99"></i>middle</span><span><i style="background:#ffd166"></i>ring</span><span><i style="background:#ef476f"></i>pinky</span><span><i style="background:#fff"></i>open</span></span>
+  <div class="more">
+    <button id="more" aria-haspopup="true" aria-expanded="false" aria-controls="more-menu">More ▾</button>
+    <div id="more-menu" hidden>
+      <a id="tabslink" class="linkbtn" href="tabs.html">Tab view</a>
+      <a class="linkbtn" href="create.html">+ Add a song</a>
+      <button id="mode-chords" aria-pressed="false" title="Chord strumming practice: progression, strum pattern, diagrams">Chord practice</button>
+      <label class="file" title="Play your own copy of the recording in sync (stays on your computer)">Load recording<input type="file" id="loadfile" accept="audio/*" hidden></label>
+      <button id="more-rec" title="Hide the controls for screen recording (key H)">Hide controls (H)</button>
+      <span class="legend" aria-label="Finger colours"><span><i style="background:#4cc9f0"></i>index</span><span><i style="background:#80ed99"></i>middle</span><span><i style="background:#ffd166"></i>ring</span><span><i style="background:#ef476f"></i>pinky</span><span><i style="background:#fff"></i>open</span></span>
+      <div id="status" role="status"></div>
+    </div>
+  </div>
 </div>
 <div class="bar" id="bottom">
-  <div id="info">Press Play</div>
   <button id="play" aria-pressed="false">Play</button>
   <input id="scrub" type="range" min="0" max="1" step="0.01" value="0" aria-label="Position">
   <span id="time">0:00 / 0:00</span>
   <select id="rate" aria-label="Speed">
     <option value="1">1×</option><option value="0.75">0.75×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option>
   </select>
-  <label><input type="checkbox" id="follow" checked> follow hand</label>
-  <label class="file" title="Play your own copy of the recording in sync (stays on your computer)">Load recording<input type="file" id="loadfile" accept="audio/*" hidden></label>
-  <button id="view-front">Front</button><button id="view-player">Player</button><button id="view-close">Close</button><button id="view-pick">Picking hand</button><button id="view-back">Back</button>
+  <button id="loop" aria-pressed="false" title="Loop a passage: press at the start (A), again at the end (B), a third time to clear">Loop</button>
+  <span id="learn-tools"></span>
 </div>
 <script src="js/yt.js?v=080657586f"></script>
 <script src="js/user-songs.js?v=48d8d05ec1"></script>
-<script type="module" src="js/main.js?v=5c4e9e99f6"></script>
+<script type="module" src="js/main.js?v=13a6b59c17"></script>
 </body>
 </html>

@@ -1,0 +1,710 @@
+{
+ "id": "mixed-test",
+ "label": "Mixed test song (strum + notes)",
+ "mode": "pick",
+ "score": {
+  "title": "Mixed test song (strum G D | riff | tab chords G D)",
+  "bpm": 120,
+  "grid": [
+   0.5,
+   1,
+   1.5,
+   2,
+   2.5,
+   3,
+   3.5,
+   4,
+   4.5,
+   5,
+   5.5,
+   6,
+   6.5,
+   7,
+   7.5,
+   8,
+   8.5,
+   9,
+   9.5,
+   10,
+   10.5,
+   11,
+   11.5,
+   12,
+   12.5,
+   13,
+   13.5,
+   14
+  ],
+  "notes": [
+   {
+    "t": 4.5,
+    "q": 8,
+    "n": [
+     [
+      1,
+      0
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 4.75,
+    "q": 8.5,
+    "n": [
+     [
+      1,
+      1
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 5,
+    "q": 9,
+    "n": [
+     [
+      1,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 5.25,
+    "q": 9.5,
+    "n": [
+     [
+      0,
+      0
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 5.5,
+    "q": 10,
+    "n": [
+     [
+      0,
+      1
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 5.75,
+    "q": 10.5,
+    "n": [
+     [
+      0,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 6,
+    "q": 11,
+    "n": [
+     [
+      1,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 6.25,
+    "q": 11.5,
+    "n": [
+     [
+      1,
+      1
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 6.5,
+    "q": 12,
+    "n": [
+     [
+      2,
+      0
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 6.75,
+    "q": 12.5,
+    "n": [
+     [
+      2,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 7,
+    "q": 13,
+    "n": [
+     [
+      1,
+      0
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 7.25,
+    "q": 13.5,
+    "n": [
+     [
+      1,
+      1
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 7.5,
+    "q": 14,
+    "n": [
+     [
+      2,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 7.75,
+    "q": 14.5,
+    "n": [
+     [
+      2,
+      0
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 8,
+    "q": 15,
+    "n": [
+     [
+      3,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 8.25,
+    "q": 15.5,
+    "n": [
+     [
+      2,
+      0
+     ]
+    ],
+    "d": 2,
+    "sec": "Riff|single notes"
+   },
+   {
+    "t": 8.5,
+    "q": 16,
+    "n": [
+     [
+      5,
+      3
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 9,
+    "q": 17,
+    "n": [
+     [
+      5,
+      3
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 9.25,
+    "q": 17.5,
+    "n": [
+     [
+      5,
+      3
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 9.75,
+    "q": 18.5,
+    "n": [
+     [
+      5,
+      3
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 10,
+    "q": 19,
+    "n": [
+     [
+      5,
+      3
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 10.25,
+    "q": 19.5,
+    "n": [
+     [
+      5,
+      3
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 10.5,
+    "q": 20,
+    "n": [
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 11,
+    "q": 21,
+    "n": [
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 11.25,
+    "q": 21.5,
+    "n": [
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 11.75,
+    "q": 22.5,
+    "n": [
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 12,
+    "q": 23,
+    "n": [
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   },
+   {
+    "t": 12.25,
+    "q": 23.5,
+    "n": [
+     [
+      3,
+      0
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "d": 2,
+    "sec": "Outro|tab chords"
+   }
+  ],
+  "chords": [
+   {
+    "t0": 0.5,
+    "t1": 2.5,
+    "name": "G",
+    "conf": 0.9
+   },
+   {
+    "t0": 2.5,
+    "t1": 4.5,
+    "name": "D",
+    "conf": 0.9
+   }
+  ],
+  "strum": {
+   "pattern": {
+    "id": "basic",
+    "name": "D DU UDU (the universal pattern)",
+    "time_sig": "4/4",
+    "subdivision": "8th",
+    "steps_per_bar": 8,
+    "beats_per_bar": 4,
+    "step_beats": 0.5,
+    "grid": "D - D U - U D U",
+    "bpm": [
+     70,
+     130
+    ],
+    "difficulty": 2,
+    "songs": [
+     "Wonderwall",
+     "Let It Be",
+     "Riptide",
+     "Brown Eyed Girl"
+    ],
+    "description": "Beats 1, 2&, 3&, 4 and 4& - the most used pop/folk strum. Count 1 2 & & 4 &. Keep the arm swinging, miss the strings on the rests.",
+    "type": "strum"
+   },
+   "id": "basic",
+   "grid": "D - D U - U D U",
+   "steps_per_bar": 8,
+   "beats_per_bar": 4,
+   "step_beats": 0.5,
+   "subdivision": "8th",
+   "swing": 0,
+   "tempo": 120,
+   "t_bar0": 0.5,
+   "confidence": 0.9,
+   "match": {
+    "id": "basic",
+    "dist": 0
+   },
+   "strokes": [
+    {
+     "t": 0.5,
+     "dir": "D",
+     "step": 0,
+     "bar": 0,
+     "vel": 0.7,
+     "accent": true
+    },
+    {
+     "t": 1,
+     "dir": "D",
+     "step": 2,
+     "bar": 0,
+     "vel": 0.7
+    },
+    {
+     "t": 1.25,
+     "dir": "U",
+     "step": 3,
+     "bar": 0,
+     "vel": 0.5
+    },
+    {
+     "t": 1.75,
+     "dir": "U",
+     "step": 5,
+     "bar": 0,
+     "vel": 0.5
+    },
+    {
+     "t": 2,
+     "dir": "D",
+     "step": 6,
+     "bar": 0,
+     "vel": 0.7
+    },
+    {
+     "t": 2.25,
+     "dir": "U",
+     "step": 7,
+     "bar": 0,
+     "vel": 0.5
+    },
+    {
+     "t": 2.5,
+     "dir": "D",
+     "step": 0,
+     "bar": 1,
+     "vel": 0.7,
+     "accent": true
+    },
+    {
+     "t": 3,
+     "dir": "D",
+     "step": 2,
+     "bar": 1,
+     "vel": 0.7
+    },
+    {
+     "t": 3.25,
+     "dir": "U",
+     "step": 3,
+     "bar": 1,
+     "vel": 0.5
+    },
+    {
+     "t": 3.75,
+     "dir": "U",
+     "step": 5,
+     "bar": 1,
+     "vel": 0.5
+    },
+    {
+     "t": 4,
+     "dir": "D",
+     "step": 6,
+     "bar": 1,
+     "vel": 0.7
+    },
+    {
+     "t": 4.25,
+     "dir": "U",
+     "step": 7,
+     "bar": 1,
+     "vel": 0.5
+    }
+   ]
+  }
+ }
+}

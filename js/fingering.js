@@ -3,6 +3,7 @@
 // finger: 0 = open string (no finger), 1 = index, 2 = middle, 3 = ring, 4 = pinky.
 
 export const P_MIN = 1, P_MAX = 20;  // pos 20 lets the ring finger take fret 22 (bends)
+const REFINGER_T = 1.0, REFINGER_COST = 3, SLIDE_BREAK = 6, PINKY_FRET = 14, PINKY_COST = 1;
 
 export function normalizeScore(score) {
   const bpm = Number.isFinite(score.bpm) && score.bpm > 0 ? score.bpm : 120;
@@ -47,6 +48,9 @@ function emission(ev, p) {
   // mild preference for index on the lowest fretted note of the event (natural position playing)
   const lo = Math.min(...fr);
   cost += 0.15 * Math.abs(lo - p);
+  // the pinky's reach is short where the frets are wide: a pinky note below fret PINKY_FRET costs a little, so a
+  // cheap shift that hands the note to the ring finger wins (Rabba B10 at 3.91 s, e9 at 27.32 s)
+  if (fr.some(f => f - p === 3 && f < PINKY_FRET)) cost += PINKY_COST;
   // bends are played with the ring finger (backed by middle + index) where possible
   if ((ev.bend || ev.hb) && fr.length === 1 && fr[0] - p + 1 !== 3) cost += 2.5;
   return cost;
@@ -64,6 +68,17 @@ export function solveFingering(events) {
     const na = a.notes.find(n => n.f > 0), nb = na && b.notes.find(n => n.s === na.s && n.f > 0);
     return nb ? nb.f - na.f : null;
   };
+  // re-fingering: when the last fretted event before l (only open strings in between) played the same
+  // string/fret less than REFINGER_T earlier, a shift in between would put a different finger on the note the
+  // hand just played (players keep the finger, e.g. Choo Lo's middle-finger G9->11->13->14->16 slide chain).
+  // reFinger[i] marks the transition (i-1 -> i).
+  const reFinger = new Uint8Array(N);
+  for (let l = 1; l < N; l++) {
+    let j = l - 1;
+    while (j >= 0 && !events[j].notes.some(m => m.f > 0)) j--;
+    if (j < 0 || events[l].t - events[j].t >= REFINGER_T) continue;
+    if (events[l].notes.some(n => n.f > 0 && events[j].notes.some(m => m.s === n.s && m.f === n.f))) for (let m = j + 1; m <= l; m++) reFinger[m] = 1;
+  }
   for (let i = 1; i < N; i++) {
     const ev = events[i];
     const sd = slideDelta(i);
@@ -75,8 +90,9 @@ export function solveFingering(events) {
       for (let k = 0; k < S; k++) {
         const c0 = cost[(i - 1) * S + k];
         if (c0 === Infinity) continue;
-        let c = c0 + (k === j ? 0 : shiftFix + shiftW * Math.abs(k - j));
-        if (sd !== null) c = c0 + (j - k === sd ? 0 : 4 + shiftW * Math.abs(k - j));
+        let c = c0 + (k === j ? 0 : shiftFix + shiftW * Math.abs(k - j) + (reFinger[i] ? REFINGER_COST : 0));
+        // a slide keeps the finger that starts it: breaking the chain costs more than the per-note index preference
+        if (sd !== null) c = c0 + (j - k === sd ? 0 : SLIDE_BREAK + shiftW * Math.abs(k - j));
         else if ((events[i - 1].ham || events[i - 1].pull) && k !== j) c += 4; // legato needs a fixed hand
         if (c < best) { best = c; arg = k; }
       }
@@ -88,6 +104,9 @@ export function solveFingering(events) {
   for (let k = 0; k < S; k++) if (cost[(N - 1) * S + k] < best) { best = cost[(N - 1) * S + k]; j = k; }
   const pos = new Array(N);
   for (let i = N - 1; i >= 0; i--) { pos[i] = P_MIN + j; j = back[i * S + j]; }
+  // open-string-only events need no hand position: the hand stays where it last fretted (the previous note keeps
+  // ringing under its finger) and shifts on the way to the next fretted note, not at the first open string
+  for (let i = 1; i < N; i++) if (!events[i].notes.some(n => n.f > 0)) pos[i] = pos[i - 1];
 
   events.forEach((ev, i) => {
     const p = pos[i];

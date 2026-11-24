@@ -1,5 +1,5 @@
 {
- "note": "Strings 0..5 = low E..high e. strum grid tokens: D/U down/up, d/u light, \">\" accent, \"p\" suffix palm-muted, x dead-muted chuck, \"-\" rest. Down hits all strings (low to high), up hits the top 4 (2..5, high to low) unless stroke_strings overrides. Timing defaults (ms): down per-string spread 5-12, up 4-9, stroke duration 90-160 shrinking with tempo; see strum_model.js.",
+ "note": "Strings 0..5 = low E..high e. strum grid tokens: D/U down/up, d/u light, \">\" accent, \"p\" suffix palm-muted, x dead-muted chuck, \"-\" rest. Down hits all strings (low to high), up hits the top 3 (G B e = 3..5, high to low; set \"up4\" adds the D string) unless stroke_strings overrides. Timing defaults (ms): down per-string spread 5-12, up 4-9, stroke duration 90-160 shrinking with tempo; see strum_model.js.",
  "tokens": {
   "D": "down",
   "U": "up",
@@ -21,7 +21,6 @@
     5
    ],
    "U": [
-    2,
     3,
     4,
     5
@@ -51,7 +50,6 @@
     5
    ],
    "U": [
-    2,
     3,
     4,
     5
@@ -69,6 +67,22 @@
     4,
     5
    ]
+  },
+  "up4": {
+   "D": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "U": [
+    2,
+    3,
+    4,
+    5
+   ]
   }
  },
  "strum": [
@@ -82,16 +96,17 @@
    "step_beats": 0.5,
    "grid": "D D D D D D D D",
    "bpm": [
-    70,
-    140
+    90,
+    160
    ],
    "difficulty": 1,
    "songs": [
-    "Knockin on Heaven's Door (simple)",
-    "many punk songs"
+    "many punk songs",
+    "driving rock rhythm"
    ],
    "description": "Down on every 8th note. Easiest start.",
-   "type": "strum"
+   "type": "strum",
+   "feel": "driving"
   },
   {
    "id": "quarters",
@@ -111,7 +126,8 @@
     "slow ballads"
    ],
    "description": "One down per beat.",
-   "type": "strum"
+   "type": "strum",
+   "feel": "ballad"
   },
   {
    "id": "basic",
@@ -219,7 +235,8 @@
    ],
    "description": "Steady palm-muted downstrokes, open the mute on accents.",
    "type": "strum",
-   "pm": true
+   "pm": true,
+   "feel": "driving"
   },
   {
    "id": "rock_open",
@@ -239,7 +256,8 @@
     "Sweet Home Alabama (feel)"
    ],
    "description": "Eight downs, accent on the beats.",
-   "type": "strum"
+   "type": "strum",
+   "feel": "driving"
   },
   {
    "id": "reggae",
@@ -325,7 +343,8 @@
     "Thinking Out Loud (strum)"
    ],
    "description": "Big down on 1, light on 3, a little pickup into the next bar.",
-   "type": "strum"
+   "type": "strum",
+   "feel": "ballad"
   },
   {
    "id": "ballad2",
@@ -346,7 +365,29 @@
     "Stand By Me (feel)"
    ],
    "description": "Softer version of the universal pattern.",
-   "type": "strum"
+   "type": "strum",
+   "feel": "ballad"
+  },
+  {
+   "id": "ballad16",
+   "name": "Slow ballad (16ths)",
+   "time_sig": "4/4",
+   "subdivision": "16th",
+   "steps_per_bar": 16,
+   "beats_per_bar": 4,
+   "step_beats": 0.25,
+   "grid": "D - - - D - D U - U D U - U D U",
+   "bpm": [
+    50,
+    80
+   ],
+   "difficulty": 3,
+   "songs": [
+    "Knockin' on Heaven's Door (lesson)"
+   ],
+   "description": "Slow 16th-note ballad: down on 1, D D U on 2, then U D U  U D U through beats 3 and 4. Half of it (D D D U) fits a 2-beat chord.",
+   "type": "strum",
+   "feel": "ballad"
   },
   {
    "id": "shuffle",
@@ -455,7 +496,8 @@
     "Nothing Else Matters"
    ],
    "description": "Two dotted-quarter beats, each 3 eighths: D on 1, DU on 4.",
-   "type": "strum"
+   "type": "strum",
+   "feel": "ballad"
   }
  ],
  "pick": [
