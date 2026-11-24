@@ -22,6 +22,8 @@ import { detectAudioChords as baselineChords } from './fixtures/audio-chords-bas
 import { decodePCM16Wav } from './fixtures/wav.mjs';
 import { playbackHarness } from './fixtures/playback-harness.mjs';
 import { fakeIndexedDB } from './fixtures/indexeddb.mjs';
+import { toScore as beforePhantoms } from './fixtures/songmaker-before-phantoms.mjs';
+import { ksNotes, residual, phantomFixtures } from './fixtures/phantom-notes.mjs';
 
 const prepare = (score, mode = 'pick') => prepareTimeline(solveFingering(normalizeScore(score)), mode);
 const melody = () => ({ bpm: 120, notes: Array.from({ length: 8 }, (_, i) => ({ t: 2 + i / 4, n: [[0, [8, 12, 15, 12][i % 4]]] })) });
@@ -168,6 +170,74 @@ test('monophonic conversion exactly matches the original converter fixture', () 
   for (const c of f.cases) for (const lib of [null, library]) assert.equal(JSON.stringify(toScore(f.raw, c.offset, .75, lib)), JSON.stringify(c.score));
 });
 
+test('real Chrome Basic Pitch output retains exactly eight correctly named strums', () => {
+  const fixture = JSON.parse(fs.readFileSync(new URL('./fixtures/basic-pitch-strum-real.json', import.meta.url)));
+  const raw = fixture.notes.map(([t, e, p, a]) => ({ t, e, p, a })), before = JSON.stringify(raw);
+  for (const lib of [null, library]) {
+    const score = toScore(raw, 0, .75, lib);
+    assert.equal(score.notes.length, 8);
+    assert.deepEqual(score.notes.map(n => playedChordName(n)), fixture.truth.map(n => n.chord));
+    assert.deepEqual(score.notes.map(n => n.t), [.522, 1.532, 2.497, 3.496, 4.496, 5.529, 6.494, 7.504]);
+    score.notes.forEach((n, i) => assert.ok(Math.abs(n.t - fixture.truth[i].t) < .04));
+  }
+  assert.equal(JSON.stringify(raw), before);
+  const chord = rawChord([48, 52, 55], 0).map(n => ({ ...n, e: 1 }));
+  const split = { t: 1, e: 1.5, p: 55, a: .8 };
+  assert.equal(toScore([...chord, split]).notes.length, 2, 'no filtering after the chord stops');
+});
+
+test('phantom fixtures remove only residuals and preserve all eight strums and real soft notes', () => {
+  for (const f of phantomFixtures()) for (const lib of [null, library]) for (const offset of [0, 3.25, -4.6]) {
+    const input = JSON.stringify(f.raw), score = toScore(f.raw, offset, .75, lib);
+    assert.equal(JSON.stringify(score), JSON.stringify(beforePhantoms(f.expected, offset, .75, lib)), f.name);
+    assert.equal(JSON.stringify(f.raw), input, 'source notes are immutable');
+    if (offset === 0) {
+      const old = beforePhantoms(f.raw, 0, .75, lib);
+      assert.equal(score.notes.filter(n => n.n.length > 1).length, 8, f.name);
+      assert.deepEqual(score.notes.filter(n => n.n.length > 1).map(n => [n.t, n.n, n.sustain]),
+        old.notes.filter(n => n.n.length > 1).map(n => [n.t, n.n, n.sustain]), f.name);
+    }
+  }
+});
+
+test('residual filter keeps ambiguous groups, stronger/longer notes, expired chords and pitch transitions', () => {
+  const base = ksNotes(), ghost = residual(71, 4.82);
+  const cases = [
+    [...base, { ...ghost, a: .4 }], // absolute threshold
+    [...base.map(n => ({ ...n, a: .5 })), ghost], // not weak relative to chord
+    [...base, { ...ghost, e: ghost.t + .181 }],
+    [...base, residual(62, 4.82)], // D4 is not a low harmonic of a sounding Am note
+    [...base, residual(59, 4.82)], // B3: same class as E3's 3rd partial, wrong octave
+    [...base, ghost, residual(74, 4.83)], // ambiguous dyad, not a singleton
+    [...base, residual(64, 4.60)], // near the strum: preserve late strings
+    [...base, residual(64, 8.6)], // chord expired
+    [...base.map(n => ({ ...n, e: n.t >= 4.5 && n.t < 5.5 ? 4.9 : n.e })), ghost], // tail crosses end
+    [...base.map(n => ({ ...n, e: n.t >= 4.5 && n.t < 5.5 && n.p % 12 === 0 ? 4.7 : n.e })), ghost], // <3 classes ringing
+    [...base, { p: 69, t: 4.7, e: 4.82, a: .5 }, ghost], // single-note hammer A4 -> B4
+    [...base, { ...ghost, e: NaN }], // missing duration is not evidence
+  ];
+  for (const raw of cases) assert.equal(JSON.stringify(toScore(raw)), JSON.stringify(beforePhantoms(raw)));
+  // The latest chord must replace prior evidence, even when old offsets overlap.
+  const changes = [...rawChord([48, 52, 55, 60, 64], 0).map(n => ({ ...n, e: 3 })),
+    ...rawChord([50, 57, 62, 66], 1), residual(64, 1.2)];
+  assert.equal(JSON.stringify(toScore(changes)), JSON.stringify(beforePhantoms(changes)));
+  // Soft, short monophonic lines have no chord context and remain byte-identical.
+  const mono = [52, 64, 71, 76, 55, 67].map((p, i) => residual(p, .2 + i * .25));
+  assert.equal(JSON.stringify(toScore(mono)), JSON.stringify(beforePhantoms(mono)));
+});
+
+test('creation saves the filtered eight-strum score and four chord labels', async () => {
+  const f = phantomFixtures()[1], h = createHarness({ notes: f.raw,
+    chords: [{ t0: .5, t1: 8.5, name: 'Em', conf: .8 }] });
+  h.get('file').onchange({ target: { files: [new File(['fixture'], 'phantoms.wav')] } });
+  await h.get('go').onclick();
+  const { score } = [...h.songs.values()][0];
+  assert.equal(score.notes.length, 8);
+  assert.deepEqual(score.chords.map(s => [s.t0, s.t1, s.name]),
+    [[.5, 2.5, 'C'], [2.5, 4.5, 'G'], [4.5, 6.5, 'Am'], [6.5, 8.5, 'F']]);
+  assert.deepEqual(chordSource(score, normalizeScore(score)).segs, score.chords);
+});
+
 test('played triads/sevenths split audio labels, survive shifts and guard older scores', () => {
   const notes = [
     { t: .5, n: [[2, 0], [3, 2], [4, 3]] }, // C
@@ -291,6 +361,7 @@ test('KS-style 8/12/15 ms per string strums stay whole at their first onset, in 
     const raw = chords.flatMap((ps, c) => [0, 1].flatMap(beat => (reverse ? [...ps].reverse() : ps)
       .map((p, s) => ({ p, t: .5 + 2 * c + beat + spread * s, e: 2.5 + 2 * c, a: [.42, .85, .56, .71, .38, .63][s] }))));
     const score = toScore(raw, 0, .75, lib);
+    assert.equal(JSON.stringify(score), JSON.stringify(beforePhantoms(raw, 0, .75, lib)));
     assert.deepEqual(score.notes.map(n => n.t), [.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5]);
     score.notes.forEach((n, i) => assert.deepEqual(n.n.map(([s, f]) => openMidi[s] + f).sort((a, b) => a - b), chords[i >> 1]));
   }

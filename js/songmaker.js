@@ -136,6 +136,46 @@ export function assignChord(pitches, lib = null) {
   return best && best.sort((a, b) => a[0] - b[0]);
 }
 
+// A short residual activation can become a note even without a fresh BP onset
+// (its remaining-energy pass). Amplitudes are model salience, NOT acoustic dB.
+// Only suppress isolated, weak, late fragments while >=3 chord pitch classes
+// still ring through the fragment. No global minimum length or melody gate.
+function isChordResidual(n, held, previous) {
+  if (!held.length || !(n.e > n.t && n.e - n.t <= .18 + 1e-9) ||
+      !(n.a >= 0 && n.a < .4) || n.t - held.at(-1).t < .12) return false;
+  const ringing = held.filter(s => s.e >= n.e && Number.isFinite(s.a));
+  if (new Set(ringing.map(s => s.p % 12)).size < 3) return false;
+  const strengths = ringing.map(s => s.a).sort((a, b) => a - b), mid = strengths.length >> 1;
+  const median = strengths.length % 2 ? strengths[mid] : (strengths[mid - 1] + strengths[mid]) / 2;
+  if (n.a >= median * .5) return false;
+  // Preserve plausible hammer-ons/pull-offs: a nearby pitch ends at this onset.
+  // Raw notes lack string/onset-head evidence, so err on the side of keeping it.
+  if ([...held, ...previous].some(s => Math.abs(s.e - n.t) <= .06 &&
+      Math.abs(s.p - n.p) >= 1 && Math.abs(s.p - n.p) <= 3)) return false;
+  // Same pitch class, or the 3rd/5th partial ABOVE a still-sounding note.
+  // 2nd/4th partials are already covered by pitch class. Do not fold arbitrary
+  // fifths/thirds or subharmonics into this test.
+  return ringing.some(s => s.p % 12 === n.p % 12 || [19, 28].includes(n.p - s.p));
+}
+
+// BP can split a sustain at exactly its offset, or detect a chord tone late.
+// These need not be quiet. Require a still-ringing chord, fewer than three
+// re-onset classes, and continuity for EVERY member of the group. A fresh
+// three-class strum is recognized first. Overlapping same-pitch activations
+// are ambiguous re-plucks; preserve those, as well as nearby pitch transitions.
+function isSustainArtifact(group, held, previous, future) {
+  if (!held.length || new Set(group.map(n => n.p % 12)).size >= 3 ||
+      group[0].t - held.at(-1).t < .12) return false;
+  const horizon = Math.max(...held.map(n => n.e));
+  const pcs = new Set(held.map(n => n.p % 12));
+  return group.every(n => n.e > n.t && n.t < horizon &&
+    (n.e <= horizon + 1e-6 || held.some(s => s.p === n.p && Math.abs(s.e - n.t) <= .015)) &&
+    pcs.has(n.p % 12) && !held.some(s => s.p === n.p && s.e > n.t + .015) &&
+    !future.some(s => Math.abs(s.t - n.e) <= .06 && Math.abs(s.p - n.p) >= 1 && Math.abs(s.p - n.p) <= 3) &&
+    ![...held, ...previous].some(s => Math.abs(s.e - n.t) <= .06 &&
+      Math.abs(s.p - n.p) >= 1 && Math.abs(s.p - n.p) <= 3));
+}
+
 // Preserve the 50 ms melody skyline, but recognize the complete strum BEFORE
 // applying its relative loudness filter. Model amplitudes vary between strings;
 // that melody filter can otherwise discard the bass/third of a clear strum.
@@ -143,6 +183,7 @@ export function assignChord(pitches, lib = null) {
 function skyline(raw, high = 0.75, lib = null) {
   const ev = raw.filter(n => n.p >= OPEN[5] && n.p <= OPEN[0] + MAX_FRET).sort((a, b) => a.t - b.t);
   const out = [];
+  let held = [], previous = [];
   for (let i = 0; i < ev.length;) {
     let j = i; while (j < ev.length && ev[j].t - ev[i].t <= 0.05) j++;
     let end = j;
@@ -163,8 +204,15 @@ function skyline(raw, high = 0.75, lib = null) {
     const top = strong.reduce((a, b) => (b.p > a.p ? b : a));
     const sounding = strong.filter(n => n.a >= 0.3 && n.e > strong[strong.length - 1].t);
     const chord = strum || assignChord(sounding.map(n => n.p), lib);
+    if (chord) held = strum ? g : sounding; // A new chord replaces old ringing evidence.
+    else if (isSustainArtifact(g, held, previous, ev.slice(j)) || (g.length === 1 && isChordResidual(top, held, previous))) {
+      // Retain continuation evidence for another split, without inventing a pluck.
+      held = held.map(s => ({ ...s, e: Math.max(s.e, ...g.filter(n => n.p === s.p).map(n => n.e)) }));
+      i = j; continue;
+    }
     out.push({ t: ev[i].t, p: top.p, a: top.a,
       ...(chord ? { chord, sustain: Math.max(...(strum ? g : sounding).map(n => n.e)) - ev[i].t } : {}) });
+    previous = g;
     i = j;
   }
   return out.filter((e, i, arr) => !(i && !e.chord && !arr[i - 1].chord && e.p === arr[i - 1].p && e.t - arr[i - 1].t < 0.13));
